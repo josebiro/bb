@@ -23,11 +23,9 @@ type SelectOption struct {
 
 // Modal represents a centered overlay modal
 type Modal struct {
-	Type          ModalType
-	Title         string
-	Width         int
-	terminalWidth int
-	terminalHeight int
+	Type  ModalType
+	Title string
+	Width int
 
 	// For input modals
 	Input textinput.Model
@@ -70,12 +68,6 @@ func NewSelectModal(title string, options []SelectOption, currentValue string, w
 		Options:  options,
 		Selected: selected,
 	}
-}
-
-// SetTerminalSize sets the terminal dimensions for centering
-func (m *Modal) SetTerminalSize(width, height int) {
-	m.terminalWidth = width
-	m.terminalHeight = height
 }
 
 // MoveUp moves selection up in select modal
@@ -152,32 +144,6 @@ func (m Modal) View() string {
 		content.WriteString(HelpDescStyle.Render("j/k: navigate  enter: select  esc: cancel"))
 	}
 
-	// Apply border
-	modalBox := borderStyle.Width(m.Width).Render(content.String())
-
-	// Center horizontally and vertically if terminal dimensions are set
-	if m.terminalWidth > 0 && m.terminalHeight > 0 {
-		modalWidth := lipgloss.Width(modalBox)
-		modalHeight := lipgloss.Height(modalBox)
-
-		// Calculate padding for centering
-		leftPad := (m.terminalWidth - modalWidth) / 2
-		topPad := (m.terminalHeight - modalHeight) / 2
-		if leftPad < 0 {
-			leftPad = 0
-		}
-		if topPad < 0 {
-			topPad = 0
-		}
-
-		// Create centered modal
-		centeredModal := lipgloss.NewStyle().
-			MarginLeft(leftPad).
-			MarginTop(topPad).
-			Render(modalBox)
-
-		return centeredModal
-	}
-
-	return modalBox
+	// Apply border and return (centering is handled by the caller)
+	return borderStyle.Width(m.Width).Render(content.String())
 }

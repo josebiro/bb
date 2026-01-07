@@ -448,7 +448,6 @@ func (m *Model) handleListKeys(msg tea.KeyMsg) tea.Cmd {
 	case key.Matches(msg, m.keys.EditTitle):
 		if task := m.getSelectedTask(); task != nil {
 			m.modal = ui.NewInputModal("Edit Title", task.Title, 50)
-			m.modal.SetTerminalSize(m.width, m.height)
 			m.mode = ViewEditTitle
 		}
 
@@ -460,7 +459,6 @@ func (m *Model) handleListKeys(msg tea.KeyMsg) tea.Cmd {
 				{Label: "closed", Value: "closed"},
 			}
 			m.modal = ui.NewSelectModal("Status", options, task.Status, 30)
-			m.modal.SetTerminalSize(m.width, m.height)
 			m.mode = ViewEditStatus
 		}
 
@@ -474,7 +472,6 @@ func (m *Model) handleListKeys(msg tea.KeyMsg) tea.Cmd {
 				{Label: "P4 (backlog)", Value: "4"},
 			}
 			m.modal = ui.NewSelectModal("Priority", options, fmt.Sprintf("%d", task.Priority), 30)
-			m.modal.SetTerminalSize(m.width, m.height)
 			m.mode = ViewEditPriority
 		}
 
@@ -488,7 +485,6 @@ func (m *Model) handleListKeys(msg tea.KeyMsg) tea.Cmd {
 				{Label: "chore", Value: "chore"},
 			}
 			m.modal = ui.NewSelectModal("Type", options, task.Type, 30)
-			m.modal.SetTerminalSize(m.width, m.height)
 			m.mode = ViewEditType
 		}
 
@@ -1226,8 +1222,56 @@ func (m Model) viewConfirm() string {
 }
 
 func (m Model) viewModal() string {
-	// Just show the modal (centered)
-	return m.modal.View()
+	// Render background
+	bg := m.viewMain()
+	bgLines := strings.Split(bg, "\n")
+
+	// Render modal
+	modal := m.modal.View()
+	modalLines := strings.Split(modal, "\n")
+
+	// Calculate modal position (centered)
+	modalHeight := len(modalLines)
+	modalWidth := lipgloss.Width(modal)
+	startY := (m.height - modalHeight) / 2
+	startX := (m.width - modalWidth) / 2
+	if startX < 0 {
+		startX = 0
+	}
+	if startY < 0 {
+		startY = 0
+	}
+
+	// Overlay modal onto background
+	for i, line := range modalLines {
+		bgY := startY + i
+		if bgY >= 0 && bgY < len(bgLines) {
+			bgLines[bgY] = overlayLine(bgLines[bgY], line, startX)
+		}
+	}
+
+	return strings.Join(bgLines, "\n")
+}
+
+// overlayLine places overlay on top of bg starting at startX
+func overlayLine(bg, overlay string, startX int) string {
+	// Pad background if needed
+	for lipgloss.Width(bg) < startX {
+		bg += " "
+	}
+
+	bgRunes := []rune(bg)
+	overlayWidth := lipgloss.Width(overlay)
+
+	// Build result: bg[0:startX] + overlay + bg[startX+overlayWidth:]
+	prefix := string(bgRunes[:min(startX, len(bgRunes))])
+	suffix := ""
+	endX := startX + overlayWidth
+	if endX < len(bgRunes) {
+		suffix = string(bgRunes[endX:])
+	}
+
+	return prefix + overlay + suffix
 }
 
 func (m Model) focusPanelString() string {
