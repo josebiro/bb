@@ -1222,56 +1222,16 @@ func (m Model) viewConfirm() string {
 }
 
 func (m Model) viewModal() string {
-	// Render background
-	bg := m.viewMain()
-	bgLines := strings.Split(bg, "\n")
-
-	// Render modal
+	// Render the modal centered on screen
 	modal := m.modal.View()
-	modalLines := strings.Split(modal, "\n")
 
-	// Calculate modal position (centered)
-	modalHeight := len(modalLines)
-	modalWidth := lipgloss.Width(modal)
-	startY := (m.height - modalHeight) / 2
-	startX := (m.width - modalWidth) / 2
-	if startX < 0 {
-		startX = 0
-	}
-	if startY < 0 {
-		startY = 0
-	}
-
-	// Overlay modal onto background
-	for i, line := range modalLines {
-		bgY := startY + i
-		if bgY >= 0 && bgY < len(bgLines) {
-			bgLines[bgY] = overlayLine(bgLines[bgY], line, startX)
-		}
-	}
-
-	return strings.Join(bgLines, "\n")
-}
-
-// overlayLine places overlay on top of bg starting at startX
-func overlayLine(bg, overlay string, startX int) string {
-	// Pad background if needed
-	for lipgloss.Width(bg) < startX {
-		bg += " "
-	}
-
-	bgRunes := []rune(bg)
-	overlayWidth := lipgloss.Width(overlay)
-
-	// Build result: bg[0:startX] + overlay + bg[startX+overlayWidth:]
-	prefix := string(bgRunes[:min(startX, len(bgRunes))])
-	suffix := ""
-	endX := startX + overlayWidth
-	if endX < len(bgRunes) {
-		suffix = string(bgRunes[endX:])
-	}
-
-	return prefix + overlay + suffix
+	return lipgloss.Place(
+		m.width,
+		m.height,
+		lipgloss.Center,
+		lipgloss.Center,
+		modal,
+	)
 }
 
 func (m Model) focusPanelString() string {
