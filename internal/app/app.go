@@ -2,6 +2,8 @@ package app
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -28,6 +30,10 @@ const (
 	ViewForm
 	ViewHelp
 	ViewConfirm
+	ViewEditTitle
+	ViewEditStatus
+	ViewEditPriority
+	ViewEditType
 )
 
 // PanelFocus represents which panel is focused
@@ -95,6 +101,9 @@ type Model struct {
 	// Confirmation
 	confirmMsg    string
 	confirmAction func() tea.Cmd
+
+	// Modal state
+	modal ui.Modal
 }
 
 // New creates a new application model
@@ -169,6 +178,12 @@ type taskClosedMsg struct {
 // taskDeletedMsg is sent when a task is deleted
 type taskDeletedMsg struct {
 	err error
+}
+
+// editorFinishedMsg is sent when external editor completes
+type editorFinishedMsg struct {
+	content string
+	err     error
 }
 
 // tickMsg triggers periodic refresh
@@ -271,6 +286,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.mode = ViewList
 		cmds = append(cmds, m.loadTasks())
 
+	case editorFinishedMsg:
+		if msg.err != nil {
+			m.err = msg.err
+		} else if m.selected != nil {
+			// Update description
+			return m, func() tea.Msg {
+				err := m.client.Update(m.selected.ID, beads.UpdateOptions{
+					Description: msg.content,
+				})
+				return taskUpdatedMsg{err: err}
+			}
+		}
+		m.mode = ViewList
+
 	case tickMsg:
 		// Periodic refresh - reload tasks and schedule next tick
 		cmds = append(cmds, m.loadTasks(), pollTick())
@@ -298,6 +327,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 	case ViewForm:
 		cmds = append(cmds, m.updateForm(msg))
+	case ViewEditTitle:
+		// Update text input in modal
+		var cmd tea.Cmd
+		m.modal.Input, cmd = m.modal.Input.Update(msg)
+		cmds = append(cmds, cmd)
 	}
 
 	return m, tea.Batch(cmds...)
@@ -315,6 +349,14 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) tea.Cmd {
 		return m.handleHelpKeys(msg)
 	case ViewConfirm:
 		return m.handleConfirmKeys(msg)
+	case ViewEditTitle:
+		return m.handleTitleModalKeys(msg)
+	case ViewEditStatus:
+		return m.handleSelectModalKeys(msg)
+	case ViewEditPriority:
+		return m.handleSelectModalKeys(msg)
+	case ViewEditType:
+		return m.handleSelectModalKeys(msg)
 	}
 	return nil
 }
@@ -402,6 +444,58 @@ func (m *Model) handleListKeys(msg tea.KeyMsg) tea.Cmd {
 
 	case key.Matches(msg, m.keys.Help):
 		m.mode = ViewHelp
+
+	case key.Matches(msg, m.keys.EditTitle):
+		if task := m.getSelectedTask(); task != nil {
+			m.modal = ui.NewInputModal("Edit Title", task.Title, 50)
+			m.modal.SetTerminalSize(m.width, m.height)
+			m.mode = ViewEditTitle
+		}
+
+	case key.Matches(msg, m.keys.EditStatus):
+		if task := m.getSelectedTask(); task != nil {
+			options := []ui.SelectOption{
+				{Label: "open", Value: "open"},
+				{Label: "in_progress", Value: "in_progress"},
+				{Label: "closed", Value: "closed"},
+			}
+			m.modal = ui.NewSelectModal("Status", options, task.Status, 30)
+			m.modal.SetTerminalSize(m.width, m.height)
+			m.mode = ViewEditStatus
+		}
+
+	case key.Matches(msg, m.keys.EditPriority):
+		if task := m.getSelectedTask(); task != nil {
+			options := []ui.SelectOption{
+				{Label: "P0 (critical)", Value: "0"},
+				{Label: "P1 (high)", Value: "1"},
+				{Label: "P2 (medium)", Value: "2"},
+				{Label: "P3 (low)", Value: "3"},
+				{Label: "P4 (backlog)", Value: "4"},
+			}
+			m.modal = ui.NewSelectModal("Priority", options, fmt.Sprintf("%d", task.Priority), 30)
+			m.modal.SetTerminalSize(m.width, m.height)
+			m.mode = ViewEditPriority
+		}
+
+	case key.Matches(msg, m.keys.EditType):
+		if task := m.getSelectedTask(); task != nil {
+			options := []ui.SelectOption{
+				{Label: "task", Value: "task"},
+				{Label: "bug", Value: "bug"},
+				{Label: "feature", Value: "feature"},
+				{Label: "epic", Value: "epic"},
+				{Label: "chore", Value: "chore"},
+			}
+			m.modal = ui.NewSelectModal("Type", options, task.Type, 30)
+			m.modal.SetTerminalSize(m.width, m.height)
+			m.mode = ViewEditType
+		}
+
+	case key.Matches(msg, m.keys.EditDescription):
+		if task := m.getSelectedTask(); task != nil {
+			return m.editDescriptionInEditor(task)
+		}
 	}
 
 	return nil
@@ -457,6 +551,117 @@ func (m *Model) handleConfirmKeys(msg tea.KeyMsg) tea.Cmd {
 		m.mode = ViewList
 	}
 	return nil
+}
+
+func (m *Model) handleTitleModalKeys(msg tea.KeyMsg) tea.Cmd {
+	switch msg.String() {
+	case "enter":
+		if m.selected != nil {
+			newTitle := strings.TrimSpace(m.modal.InputValue())
+			if newTitle != "" {
+				taskID := m.selected.ID
+				m.mode = ViewList
+				return func() tea.Msg {
+					err := m.client.Update(taskID, beads.UpdateOptions{
+						Title: newTitle,
+					})
+					return taskUpdatedMsg{err: err}
+				}
+			}
+		}
+		m.mode = ViewList
+	case "esc":
+		m.mode = ViewList
+	}
+	return nil
+}
+
+func (m *Model) handleSelectModalKeys(msg tea.KeyMsg) tea.Cmd {
+	switch msg.String() {
+	case "j", "down":
+		m.modal.MoveDown()
+	case "k", "up":
+		m.modal.MoveUp()
+	case "enter":
+		if m.selected != nil {
+			value := m.modal.SelectedValue()
+			taskID := m.selected.ID
+			m.mode = ViewList
+			return m.applyModalSelection(taskID, value)
+		}
+		m.mode = ViewList
+	case "esc":
+		m.mode = ViewList
+	}
+	return nil
+}
+
+func (m *Model) applyModalSelection(taskID, value string) tea.Cmd {
+	// Determine what field to update based on modal title
+	switch m.modal.Title {
+	case "Status":
+		return func() tea.Msg {
+			err := m.client.Update(taskID, beads.UpdateOptions{
+				Status: value,
+			})
+			return taskUpdatedMsg{err: err}
+		}
+	case "Priority":
+		priority := 2
+		fmt.Sscanf(value, "%d", &priority)
+		return func() tea.Msg {
+			err := m.client.Update(taskID, beads.UpdateOptions{
+				Priority: &priority,
+			})
+			return taskUpdatedMsg{err: err}
+		}
+	case "Type":
+		return func() tea.Msg {
+			err := m.client.Update(taskID, beads.UpdateOptions{
+				Type: value,
+			})
+			return taskUpdatedMsg{err: err}
+		}
+	}
+	return nil
+}
+
+func (m *Model) editDescriptionInEditor(task *models.Task) tea.Cmd {
+	editor := os.Getenv("EDITOR")
+	if editor == "" {
+		editor = "nano"
+	}
+
+	// Create temp file with .md extension for syntax highlighting
+	tmpfile, err := os.CreateTemp("", "lazybeads-*.md")
+	if err != nil {
+		m.err = fmt.Errorf("failed to create temp file: %w", err)
+		return nil
+	}
+
+	// Write current description to temp file
+	if _, err := tmpfile.WriteString(task.Description); err != nil {
+		tmpfile.Close()
+		os.Remove(tmpfile.Name())
+		m.err = fmt.Errorf("failed to write to temp file: %w", err)
+		return nil
+	}
+	tmpfile.Close()
+
+	tmpPath := tmpfile.Name()
+	c := exec.Command(editor, tmpPath)
+
+	return tea.ExecProcess(c, func(err error) tea.Msg {
+		defer os.Remove(tmpPath)
+		if err != nil {
+			return editorFinishedMsg{err: err}
+		}
+		content, readErr := os.ReadFile(tmpPath)
+		if readErr != nil {
+			return editorFinishedMsg{err: readErr}
+		}
+		return editorFinishedMsg{content: string(content)}
+	})
 }
 
 func (m *Model) updateForm(msg tea.Msg) tea.Cmd {
@@ -806,6 +1011,8 @@ func (m Model) View() string {
 			return m.viewDetailOverlay()
 		}
 		return m.viewMain()
+	case ViewEditTitle, ViewEditStatus, ViewEditPriority, ViewEditType:
+		return m.viewModal()
 	default:
 		return m.viewMain()
 	}
@@ -983,10 +1190,17 @@ Panels (h/l to cycle focus)
 Actions
   enter       View task details
   a           Add new task
-  e           Edit selected task
+  e           Edit all fields (form)
   c           Close selected task
-  d           Delete selected task
+  x           Delete selected task
   R           Refresh list
+
+Field Editing
+  t           Edit title (modal)
+  s           Edit status (modal)
+  p           Edit priority (modal)
+  y           Edit type (modal)
+  d           Edit description ($EDITOR)
 
 General
   ?           Toggle this help
@@ -1011,6 +1225,11 @@ func (m Model) viewConfirm() string {
 	return b.String()
 }
 
+func (m Model) viewModal() string {
+	// Just show the modal (centered)
+	return m.modal.View()
+}
+
 func (m Model) focusPanelString() string {
 	switch m.focusedPanel {
 	case FocusInProgress:
@@ -1032,10 +1251,9 @@ func (m Model) renderHelpBar() string {
 		{"j/k", "nav"},
 		{"h/l", "panel"},
 		{"enter", "detail"},
-		{"a", "add"},
-		{"e", "edit"},
+		{"t/s/p/y/d", "edit fields"},
 		{"c", "close"},
-		{"d", "delete"},
+		{"x", "delete"},
 		{"?", "help"},
 		{"q", "quit"},
 	}

@@ -20,6 +20,13 @@ type KeyMap struct {
 	Close   key.Binding
 	Refresh key.Binding
 
+	// Field-specific editing
+	EditTitle       key.Binding
+	EditStatus      key.Binding
+	EditPriority    key.Binding
+	EditType        key.Binding
+	EditDescription key.Binding
+
 	// Filtering
 	Filter     key.Binding
 	FilterDone key.Binding
@@ -80,8 +87,8 @@ func DefaultKeyMap() KeyMap {
 			key.WithHelp("e", "edit"),
 		),
 		Delete: key.NewBinding(
-			key.WithKeys("d"),
-			key.WithHelp("d", "delete"),
+			key.WithKeys("x"),
+			key.WithHelp("x", "delete"),
 		),
 		Close: key.NewBinding(
 			key.WithKeys("c"),
@@ -90,6 +97,28 @@ func DefaultKeyMap() KeyMap {
 		Refresh: key.NewBinding(
 			key.WithKeys("R"),
 			key.WithHelp("R", "refresh"),
+		),
+
+		// Field-specific editing
+		EditTitle: key.NewBinding(
+			key.WithKeys("t"),
+			key.WithHelp("t", "edit title"),
+		),
+		EditStatus: key.NewBinding(
+			key.WithKeys("s"),
+			key.WithHelp("s", "edit status"),
+		),
+		EditPriority: key.NewBinding(
+			key.WithKeys("p"),
+			key.WithHelp("p", "edit priority"),
+		),
+		EditType: key.NewBinding(
+			key.WithKeys("y"),
+			key.WithHelp("y", "edit type"),
+		),
+		EditDescription: key.NewBinding(
+			key.WithKeys("d"),
+			key.WithHelp("d", "edit description"),
 		),
 
 		// Filtering

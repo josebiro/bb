@@ -135,10 +135,12 @@ func (c *Client) Create(opts CreateOptions) (*models.Task, error) {
 
 // UpdateOptions holds options for updating a task
 type UpdateOptions struct {
-	Status   string
-	Priority *int
-	Title    string
-	Assignee string
+	Status      string
+	Priority    *int
+	Title       string
+	Assignee    string
+	Type        string
+	Description string
 }
 
 // Update modifies an existing task
@@ -156,6 +158,12 @@ func (c *Client) Update(id string, opts UpdateOptions) error {
 	}
 	if opts.Assignee != "" {
 		args = append(args, "--assignee", opts.Assignee)
+	}
+	if opts.Type != "" {
+		args = append(args, "--type", opts.Type)
+	}
+	if opts.Description != "" {
+		args = append(args, "-d", opts.Description)
 	}
 
 	cmd := exec.Command("bd", args...)
