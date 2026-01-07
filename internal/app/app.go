@@ -564,40 +564,54 @@ func (m *Model) updateSizes() {
 		contentHeight = 0
 	}
 
+	// Determine how many panels are visible
+	visiblePanels := m.getVisiblePanels()
+	numPanels := len(visiblePanels)
+	if numPanels == 0 {
+		numPanels = 1 // Shouldn't happen, but avoid division by zero
+	}
+
 	// Calculate panel heights - distribute evenly with remainder going to first panels
-	panelHeight := contentHeight / 3
-	remainder := contentHeight % 3
+	panelHeight := contentHeight / numPanels
+	remainder := contentHeight % numPanels
 	if panelHeight < 4 {
 		panelHeight = 4
 	}
 
-	// Give extra height to first panels to fill the space
-	inProgressHeight := panelHeight
-	openHeight := panelHeight
-	closedHeight := panelHeight
-	if remainder >= 1 {
-		inProgressHeight++
-	}
-	if remainder >= 2 {
-		openHeight++
-	}
-
 	// Wide mode: panels on left, detail on right
+	var panelWidth int
 	if m.width >= 80 {
-		panelWidth := m.width/2 - 1
-		m.inProgressPanel.SetSize(panelWidth, inProgressHeight)
-		m.openPanel.SetSize(panelWidth, openHeight)
-		m.closedPanel.SetSize(panelWidth, closedHeight)
+		panelWidth = m.width/2 - 1
 		m.detail.Width = m.width/2 - 4
 		m.detail.Height = contentHeight - 2
 	} else {
 		// Narrow mode: full width panels stacked
-		panelWidth := m.width - 2
-		m.inProgressPanel.SetSize(panelWidth, inProgressHeight)
-		m.openPanel.SetSize(panelWidth, openHeight)
-		m.closedPanel.SetSize(panelWidth, closedHeight)
+		panelWidth = m.width - 2
 		m.detail.Width = m.width - 4
 		m.detail.Height = contentHeight - 2
+	}
+
+	// Distribute heights to visible panels
+	panelIndex := 0
+	for _, panel := range visiblePanels {
+		h := panelHeight
+		if panelIndex < remainder {
+			h++
+		}
+		switch panel {
+		case FocusInProgress:
+			m.inProgressPanel.SetSize(panelWidth, h)
+		case FocusOpen:
+			m.openPanel.SetSize(panelWidth, h)
+		case FocusClosed:
+			m.closedPanel.SetSize(panelWidth, h)
+		}
+		panelIndex++
+	}
+
+	// Set size 0 for hidden panels (In Progress when empty)
+	if !m.isInProgressVisible() {
+		m.inProgressPanel.SetSize(panelWidth, 0)
 	}
 }
 
@@ -616,6 +630,17 @@ func (m *Model) distributeTasks() {
 	m.inProgressPanel.SetTasks(inProgress)
 	m.openPanel.SetTasks(open)
 	m.closedPanel.SetTasks(closed)
+
+	// If In Progress panel disappears while focused, move focus to Open panel
+	if m.focusedPanel == FocusInProgress && len(inProgress) == 0 {
+		m.inProgressPanel.SetFocus(false)
+		m.focusedPanel = FocusOpen
+		m.openPanel.SetFocus(true)
+		m.selected = m.getSelectedTask()
+	}
+
+	// Recalculate sizes since panel visibility may have changed
+	m.updateSizes()
 }
 
 func (m *Model) getSelectedTask() *models.Task {
@@ -630,7 +655,28 @@ func (m *Model) getSelectedTask() *models.Task {
 	return nil
 }
 
+// isInProgressVisible returns true if the In Progress panel should be shown
+func (m *Model) isInProgressVisible() bool {
+	return m.inProgressPanel.TaskCount() > 0
+}
+
+// getVisiblePanels returns the list of currently visible panel focus values
+func (m *Model) getVisiblePanels() []PanelFocus {
+	var panels []PanelFocus
+	if m.isInProgressVisible() {
+		panels = append(panels, FocusInProgress)
+	}
+	panels = append(panels, FocusOpen)
+	panels = append(panels, FocusClosed)
+	return panels
+}
+
 func (m *Model) cyclePanelFocus(direction int) {
+	visiblePanels := m.getVisiblePanels()
+	if len(visiblePanels) == 0 {
+		return
+	}
+
 	// Clear focus from current panel
 	switch m.focusedPanel {
 	case FocusInProgress:
@@ -641,8 +687,23 @@ func (m *Model) cyclePanelFocus(direction int) {
 		m.closedPanel.SetFocus(false)
 	}
 
-	// Cycle to next panel
-	m.focusedPanel = PanelFocus((int(m.focusedPanel) + direction + int(panelCount)) % int(panelCount))
+	// Find current panel index in visible panels
+	currentIdx := -1
+	for i, p := range visiblePanels {
+		if p == m.focusedPanel {
+			currentIdx = i
+			break
+		}
+	}
+
+	// If current panel is not visible (e.g., In Progress disappeared), start from first visible
+	if currentIdx == -1 {
+		currentIdx = 0
+	}
+
+	// Cycle to next visible panel
+	newIdx := (currentIdx + direction + len(visiblePanels)) % len(visiblePanels)
+	m.focusedPanel = visiblePanels[newIdx]
 
 	// Set focus on new panel
 	switch m.focusedPanel {
@@ -767,12 +828,14 @@ func (m Model) viewMain() string {
 	// Content area
 	contentHeight := m.height - 4
 
-	// Stack 3 panels vertically
-	leftColumn := lipgloss.JoinVertical(lipgloss.Left,
-		m.inProgressPanel.View(),
-		m.openPanel.View(),
-		m.closedPanel.View(),
-	)
+	// Stack visible panels vertically
+	var panelViews []string
+	if m.isInProgressVisible() {
+		panelViews = append(panelViews, m.inProgressPanel.View())
+	}
+	panelViews = append(panelViews, m.openPanel.View())
+	panelViews = append(panelViews, m.closedPanel.View())
+	leftColumn := lipgloss.JoinVertical(lipgloss.Left, panelViews...)
 
 	if m.width >= 80 {
 		// Wide mode: panels on left, detail on right
