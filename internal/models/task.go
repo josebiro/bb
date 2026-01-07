@@ -16,6 +16,7 @@ type Task struct {
 	CreatedBy       string     `json:"created_by,omitempty"`
 	UpdatedAt       time.Time  `json:"updated_at"`
 	ClosedAt        *time.Time `json:"closed_at,omitempty"`
+	CloseReason     string     `json:"close_reason,omitempty"`
 	DueDate         *time.Time `json:"due_date,omitempty"`
 	DeferUntil      *time.Time `json:"defer_until,omitempty"`
 	BlockedBy       []string   `json:"blocked_by,omitempty"`

@@ -295,6 +295,30 @@ func (m *Model) updateDetailContent() {
 	b.WriteString(ui.DetailValueStyle.Render(t.Type))
 	b.WriteString("\n")
 
+	if t.Assignee != "" {
+		b.WriteString(ui.DetailLabelStyle.Render("Assignee:"))
+		b.WriteString(ui.DetailValueStyle.Render(t.Assignee))
+		b.WriteString("\n")
+	}
+
+	if len(t.Labels) > 0 {
+		b.WriteString(ui.DetailLabelStyle.Render("Labels:"))
+		b.WriteString(ui.DetailValueStyle.Render(strings.Join(t.Labels, ", ")))
+		b.WriteString("\n")
+	}
+
+	if t.DueDate != nil {
+		b.WriteString(ui.DetailLabelStyle.Render("Due:"))
+		b.WriteString(ui.DetailValueStyle.Render(t.DueDate.Format("2006-01-02")))
+		b.WriteString("\n")
+	}
+
+	if t.DeferUntil != nil {
+		b.WriteString(ui.DetailLabelStyle.Render("Deferred:"))
+		b.WriteString(ui.DetailValueStyle.Render("until " + t.DeferUntil.Format("2006-01-02")))
+		b.WriteString("\n")
+	}
+
 	if t.Description != "" {
 		b.WriteString("\n")
 		b.WriteString(ui.DetailLabelStyle.Render("Description:"))
@@ -306,6 +330,20 @@ func (m *Model) updateDetailContent() {
 		}
 		wrappedDesc := lipgloss.NewStyle().Width(descWidth).Render(t.Description)
 		b.WriteString(wrappedDesc)
+		b.WriteString("\n")
+	}
+
+	if t.CloseReason != "" {
+		b.WriteString("\n")
+		b.WriteString(ui.DetailLabelStyle.Render("Close Reason:"))
+		b.WriteString("\n")
+		// Wrap close reason to fit panel width
+		descWidth := m.detail.Width - 2
+		if descWidth < 20 {
+			descWidth = 20
+		}
+		wrappedReason := lipgloss.NewStyle().Width(descWidth).Render(t.CloseReason)
+		b.WriteString(wrappedReason)
 		b.WriteString("\n")
 	}
 
@@ -327,9 +365,24 @@ func (m *Model) updateDetailContent() {
 		}
 	}
 
+	// Timestamps section
 	b.WriteString("\n")
 	b.WriteString(ui.DetailLabelStyle.Render("Created:"))
 	b.WriteString(ui.DetailValueStyle.Render(t.CreatedAt.Format("2006-01-02 15:04")))
+	if t.CreatedBy != "" {
+		b.WriteString(ui.HelpDescStyle.Render(" by " + t.CreatedBy))
+	}
+	b.WriteString("\n")
+
+	b.WriteString(ui.DetailLabelStyle.Render("Updated:"))
+	b.WriteString(ui.DetailValueStyle.Render(t.UpdatedAt.Format("2006-01-02 15:04")))
+	b.WriteString("\n")
+
+	if t.ClosedAt != nil {
+		b.WriteString(ui.DetailLabelStyle.Render("Closed:"))
+		b.WriteString(ui.DetailValueStyle.Render(t.ClosedAt.Format("2006-01-02 15:04")))
+		b.WriteString("\n")
+	}
 
 	m.detail.SetContent(b.String())
 }
