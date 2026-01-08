@@ -96,8 +96,8 @@ func DefaultKeyMap() KeyMap {
 
 		// Field-specific editing
 		EditTitle: key.NewBinding(
-			key.WithKeys("t"),
-			key.WithHelp("t", "edit title"),
+			key.WithKeys("e"),
+			key.WithHelp("e", "edit title"),
 		),
 		EditStatus: key.NewBinding(
 			key.WithKeys("s"),
@@ -108,16 +108,16 @@ func DefaultKeyMap() KeyMap {
 			key.WithHelp("p", "edit priority"),
 		),
 		EditType: key.NewBinding(
-			key.WithKeys("T"),
-			key.WithHelp("T", "edit type"),
+			key.WithKeys("t"),
+			key.WithHelp("t", "edit type"),
 		),
 		CopyID: key.NewBinding(
 			key.WithKeys("y"),
 			key.WithHelp("y", "copy id"),
 		),
 		EditDescription: key.NewBinding(
-			key.WithKeys("d", "e"),
-			key.WithHelp("d/e", "edit description"),
+			key.WithKeys("d"),
+			key.WithHelp("d", "edit description"),
 		),
 
 		// Filtering

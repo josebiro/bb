@@ -138,12 +138,12 @@ Actions
   R           Refresh list
 
 Field Editing
-  t           Edit title (modal)
+  e           Edit title (modal)
   s           Edit status (modal)
   p           Edit priority (modal)
-  T           Edit type (modal)
+  t           Edit type (modal)
   y           Copy issue ID to clipboard
-  d/e         Edit description ($EDITOR)
+  d           Edit description ($EDITOR)
 
 General
   ?           Toggle this help
@@ -227,7 +227,7 @@ func (m Model) renderStatusBar() string {
 			{"h/l", "panel"},
 			{"/", "filter"},
 			{"enter", "detail"},
-			{"t/s/p/T/d", "edit"},
+			{"e/s/p/t/d", "edit"},
 			{"y", "copy"},
 			{"x", "delete"},
 			{"?", "help"},
