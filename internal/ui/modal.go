@@ -39,10 +39,11 @@ type Modal struct {
 // NewModalInput creates a new text input modal
 func NewModalInput(title, subtitle, value string) Modal {
 	ti := textinput.New()
+	ti.Prompt = "" // Remove default "> " prompt
 	ti.SetValue(value)
 	ti.Focus()
 	ti.CharLimit = 200
-	ti.Width = 50
+	ti.Width = 54 // Account for modal padding
 
 	return Modal{
 		Type:     ModalInput,
@@ -141,13 +142,8 @@ func (m Modal) View(width, height int) string {
 	content.WriteString("\n\n")
 
 	if m.Type == ModalInput {
-		// Text input
-		inputStyle := lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(ColorPrimary).
-			Padding(0, 1).
-			Width(modalWidth - 4)
-		content.WriteString(inputStyle.Render(m.Input.View()))
+		// Text input - no extra border, modal border is enough
+		content.WriteString(m.Input.View())
 		content.WriteString("\n\n")
 
 		// Help text
