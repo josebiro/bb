@@ -6,11 +6,13 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"lazybeads/internal/beads"
+	"lazybeads/internal/config"
 	"lazybeads/internal/models"
 	"lazybeads/internal/ui"
 )
@@ -105,6 +107,9 @@ type Model struct {
 
 	// Status message (flash notification)
 	statusMsg string
+
+	// Custom commands from config
+	customCommands []config.CustomCommand
 }
 
 // New creates a new application model
@@ -138,9 +143,20 @@ func New() Model {
 	formDesc.Placeholder = "Add details, context, or acceptance criteria (optional)"
 	formDesc.CharLimit = 1000
 
+	// Load config (ignore errors, use empty config)
+	cfg, _ := config.Load()
+	var customCmds []config.CustomCommand
+	if cfg != nil {
+		customCmds = cfg.CustomCommands
+	}
+
+	// Build key map with custom commands
+	keys := ui.DefaultKeyMap()
+	keys.CustomCommands = buildCustomCommandBindings(customCmds)
+
 	return Model{
 		client:          beads.NewClient(),
-		keys:            ui.DefaultKeyMap(),
+		keys:            keys,
 		help:            h,
 		mode:            ViewList,
 		focusedPanel:    FocusInProgress,
@@ -153,7 +169,20 @@ func New() Model {
 		formDesc:        formDesc,
 		formPriority:    2,
 		formType:        "feature",
+		customCommands:  customCmds,
 	}
+}
+
+// buildCustomCommandBindings creates key bindings from custom commands
+func buildCustomCommandBindings(cmds []config.CustomCommand) []key.Binding {
+	var bindings []key.Binding
+	for _, cmd := range cmds {
+		bindings = append(bindings, key.NewBinding(
+			key.WithKeys(cmd.Key),
+			key.WithHelp(cmd.Key, cmd.Description),
+		))
+	}
+	return bindings
 }
 
 // Init initializes the application

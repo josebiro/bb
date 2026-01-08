@@ -1,16 +1,19 @@
 package app
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
+	"text/template"
 
 	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"lazybeads/internal/beads"
+	"lazybeads/internal/config"
 	"lazybeads/internal/models"
 	"lazybeads/internal/ui"
 )
@@ -161,6 +164,12 @@ func (m *Model) handleListKeys(msg tea.KeyMsg) tea.Cmd {
 				return clipboardCopiedMsg{text: taskID, err: err}
 			}
 		}
+
+	default:
+		// Check custom commands
+		if cmd := m.matchCustomCommand(msg, "list"); cmd != nil {
+			return cmd
+		}
 	}
 
 	return nil
@@ -172,6 +181,11 @@ func (m *Model) handleDetailKeys(msg tea.KeyMsg) tea.Cmd {
 		m.mode = ViewList
 	case key.Matches(msg, m.keys.Help):
 		m.mode = ViewHelp
+	default:
+		// Check custom commands
+		if cmd := m.matchCustomCommand(msg, "detail"); cmd != nil {
+			return cmd
+		}
 	}
 	return nil
 }
@@ -360,4 +374,53 @@ func (m *Model) editDescriptionInEditor(task *models.Task) tea.Cmd {
 		}
 		return editorFinishedMsg{content: string(content)}
 	})
+}
+
+// matchCustomCommand checks if the key matches any custom command for the given context
+func (m *Model) matchCustomCommand(msg tea.KeyMsg, context string) tea.Cmd {
+	keyStr := msg.String()
+	for _, cmd := range m.customCommands {
+		if cmd.Key == keyStr && (cmd.Context == context || cmd.Context == "global") {
+			return m.executeCustomCommand(cmd)
+		}
+	}
+	return nil
+}
+
+// executeCustomCommand renders and executes a custom command
+func (m *Model) executeCustomCommand(cmd config.CustomCommand) tea.Cmd {
+	task := m.getSelectedTask()
+	if task == nil {
+		return nil
+	}
+
+	// Render command template
+	rendered, err := m.renderCommandTemplate(cmd.Command, task)
+	if err != nil {
+		m.err = fmt.Errorf("template error: %w", err)
+		return nil
+	}
+
+	// Execute command non-blocking (for tmux commands)
+	c := exec.Command("sh", "-c", rendered)
+	if err := c.Start(); err != nil {
+		m.err = fmt.Errorf("failed to execute command: %w", err)
+	}
+
+	return nil
+}
+
+// renderCommandTemplate renders the command template with task data
+func (m *Model) renderCommandTemplate(cmdTemplate string, task *models.Task) (string, error) {
+	tmpl, err := template.New("cmd").Parse(cmdTemplate)
+	if err != nil {
+		return "", err
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, task); err != nil {
+		return "", err
+	}
+
+	return buf.String(), nil
 }

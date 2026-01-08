@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"path/filepath"
+	"time"
+)
 
 // Task represents a beads issue
 type Task struct {
@@ -60,4 +63,9 @@ func (t Task) StatusIcon() string {
 // IsBlocked returns true if task has blockers
 func (t Task) IsBlocked() bool {
 	return len(t.BlockedBy) > 0
+}
+
+// FilePath returns the path to the task's markdown file
+func (t Task) FilePath() string {
+	return filepath.Join(".beads", "issues", t.ID+".md")
 }

@@ -42,6 +42,9 @@ type KeyMap struct {
 	ShiftTab  key.Binding
 	PrevView  key.Binding
 	NextView  key.Binding
+
+	// Custom commands (loaded from config)
+	CustomCommands []key.Binding
 }
 
 // DefaultKeyMap returns the default keybindings
@@ -190,10 +193,15 @@ func (k KeyMap) ShortHelp() []key.Binding {
 
 // FullHelp returns keybindings for expanded help view
 func (k KeyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{
+	groups := [][]key.Binding{
 		{k.Up, k.Down, k.Top, k.Bottom, k.PageUp, k.PageDown},
 		{k.Select, k.Add, k.Delete, k.Refresh},
 		{k.Filter, k.Ready, k.Open, k.All},
 		{k.Help, k.Quit, k.Cancel},
 	}
+	// Add custom commands as a separate group if present
+	if len(k.CustomCommands) > 0 {
+		groups = append(groups, k.CustomCommands)
+	}
+	return groups
 }

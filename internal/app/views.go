@@ -159,6 +159,14 @@ General
 
 Auto-refresh: polls every 2 seconds
 `
+	// Add custom commands section if any are configured
+	if len(m.customCommands) > 0 {
+		helpContent += "\nCustom Commands\n"
+		for _, cmd := range m.customCommands {
+			helpContent += fmt.Sprintf("  %-10s  %s (%s)\n", cmd.Key, cmd.Description, cmd.Context)
+		}
+	}
+
 	b.WriteString(ui.OverlayStyle.Render(helpContent))
 	b.WriteString("\n")
 	b.WriteString(ui.HelpBarStyle.Render("Press ? or esc to close"))
