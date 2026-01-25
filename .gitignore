@@ -12,3 +12,6 @@ lazybeads
 
 # OS
 .DS_Store
+
+# Claude code
+.claude/
