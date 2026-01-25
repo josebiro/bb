@@ -9,9 +9,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"lazybeads/internal/app"
-	"lazybeads/internal/beads"
-	"lazybeads/internal/config"
+	"github.com/josebiro/lazybeads/internal/app"
+	"github.com/josebiro/lazybeads/internal/beads"
+	"github.com/josebiro/lazybeads/internal/config"
 )
 
 func main() {
