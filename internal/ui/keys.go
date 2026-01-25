@@ -24,6 +24,7 @@ type KeyMap struct {
 	EditPriority    key.Binding
 	EditType        key.Binding
 	EditDescription key.Binding
+	AddComment      key.Binding
 	CopyID          key.Binding
 
 	// Filtering
@@ -32,6 +33,12 @@ type KeyMap struct {
 	Ready      key.Binding
 	Open       key.Binding
 	All        key.Binding
+
+	// Sorting
+	Sort key.Binding
+
+	// Views
+	Board key.Binding
 
 	// UI
 	Help      key.Binding
@@ -119,6 +126,10 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("d"),
 			key.WithHelp("d", "edit description"),
 		),
+		AddComment: key.NewBinding(
+			key.WithKeys("C"),
+			key.WithHelp("C", "add comment"),
+		),
 
 		// Filtering
 		Filter: key.NewBinding(
@@ -140,6 +151,18 @@ func DefaultKeyMap() KeyMap {
 		All: key.NewBinding(
 			key.WithKeys("A"),
 			key.WithHelp("A", "all"),
+		),
+
+		// Sorting
+		Sort: key.NewBinding(
+			key.WithKeys("S"),
+			key.WithHelp("S", "cycle sort"),
+		),
+
+		// Views
+		Board: key.NewBinding(
+			key.WithKeys("b"),
+			key.WithHelp("b", "board view"),
 		),
 
 		// UI

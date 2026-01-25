@@ -311,6 +311,10 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) tea.Cmd {
 		return m.handleSelectBarKeys(msg)
 	case ViewFilter:
 		return m.handleFilterKeys(msg)
+	case ViewAddComment:
+		return m.handleAddCommentKeys(msg)
+	case ViewBoard:
+		return m.handleBoardKeys(msg)
 	}
 	return nil
 }
@@ -339,8 +343,10 @@ func (m *Model) handleListKeys(msg tea.KeyMsg) tea.Cmd {
 	case key.Matches(msg, m.keys.Select):
 		if task := m.getSelectedTask(); task != nil {
 			m.selected = task
+			m.comments = nil // Clear old comments
 			m.updateDetailContent()
 			m.mode = ViewDetail
+			return m.loadComments(task.ID)
 		}
 
 	case key.Matches(msg, m.keys.Add):
@@ -422,6 +428,14 @@ func (m *Model) handleListKeys(msg tea.KeyMsg) tea.Cmd {
 			return m.editDescriptionInEditor(task)
 		}
 
+	case key.Matches(msg, m.keys.AddComment):
+		if task := m.getSelectedTask(); task != nil {
+			m.commentInput.SetValue("")
+			m.commentInput.Focus()
+			m.mode = ViewAddComment
+			return m.commentInput.Focus()
+		}
+
 	case key.Matches(msg, m.keys.Filter):
 		// Enter inline search mode in status bar
 		m.searchMode = true
@@ -437,6 +451,17 @@ func (m *Model) handleListKeys(msg tea.KeyMsg) tea.Cmd {
 				return clipboardCopiedMsg{text: taskID, err: err}
 			}
 		}
+
+	case key.Matches(msg, m.keys.Sort):
+		// Cycle through sort modes
+		m.sortMode = (m.sortMode + 1) % sortModeCount
+		m.distributeTasks()
+
+	case key.Matches(msg, m.keys.Board):
+		// Switch to board view
+		m.boardColumn = 0
+		m.boardRow = 0
+		m.mode = ViewBoard
 
 	default:
 		// Check custom commands
@@ -643,6 +668,125 @@ func (m *Model) handleFilterKeys(msg tea.KeyMsg) tea.Cmd {
 		// Cancel and return to list (don't change filter)
 		m.mode = ViewList
 	}
+	return nil
+}
+
+func (m *Model) handleAddCommentKeys(msg tea.KeyMsg) tea.Cmd {
+	switch msg.String() {
+	case "enter":
+		// Submit comment
+		comment := strings.TrimSpace(m.commentInput.Value())
+		if comment != "" && m.selected != nil {
+			taskID := m.selected.ID
+			m.commentInput.Blur()
+			m.mode = ViewList
+			return func() tea.Msg {
+				err := m.client.AddComment(taskID, comment)
+				return commentAddedMsg{err: err}
+			}
+		}
+		m.mode = ViewList
+	case "esc":
+		m.commentInput.Blur()
+		m.mode = ViewList
+	}
+	return nil
+}
+
+func (m *Model) handleBoardKeys(msg tea.KeyMsg) tea.Cmd {
+	// Get tasks for each column to know bounds
+	var openCount, inProgressCount, closedCount int
+	for _, t := range m.tasks {
+		switch t.Status {
+		case "open":
+			openCount++
+		case "in_progress":
+			inProgressCount++
+		case "closed":
+			closedCount++
+		}
+	}
+
+	// Get count for current column
+	currentColumnCount := func() int {
+		switch m.boardColumn {
+		case 0:
+			return openCount
+		case 1:
+			return inProgressCount
+		case 2:
+			return closedCount
+		}
+		return 0
+	}
+
+	switch {
+	case key.Matches(msg, m.keys.PrevView): // h/left - move to previous column
+		if m.boardColumn > 0 {
+			m.boardColumn--
+			// Clamp row to new column's bounds
+			newCount := currentColumnCount()
+			if m.boardRow >= newCount {
+				m.boardRow = newCount - 1
+			}
+			if m.boardRow < 0 {
+				m.boardRow = 0
+			}
+		}
+
+	case key.Matches(msg, m.keys.NextView): // l/right - move to next column
+		if m.boardColumn < 2 {
+			m.boardColumn++
+			// Clamp row to new column's bounds
+			newCount := currentColumnCount()
+			if m.boardRow >= newCount {
+				m.boardRow = newCount - 1
+			}
+			if m.boardRow < 0 {
+				m.boardRow = 0
+			}
+		}
+
+	case key.Matches(msg, m.keys.Up): // k/up - move up in column
+		if m.boardRow > 0 {
+			m.boardRow--
+		}
+
+	case key.Matches(msg, m.keys.Down): // j/down - move down in column
+		count := currentColumnCount()
+		if m.boardRow < count-1 {
+			m.boardRow++
+		}
+
+	case key.Matches(msg, m.keys.Top): // g - go to top
+		m.boardRow = 0
+
+	case key.Matches(msg, m.keys.Bottom): // G - go to bottom
+		count := currentColumnCount()
+		if count > 0 {
+			m.boardRow = count - 1
+		}
+
+	case key.Matches(msg, m.keys.Select): // enter - view task details
+		task := m.getBoardSelectedTask()
+		if task != nil {
+			m.selected = task
+			m.comments = nil
+			m.updateDetailContent()
+			m.mode = ViewDetail
+			return m.loadComments(task.ID)
+		}
+
+	case key.Matches(msg, m.keys.Board): // b - toggle back to list view
+		m.mode = ViewList
+
+	case key.Matches(msg, m.keys.Help):
+		m.mode = ViewHelp
+
+	case key.Matches(msg, m.keys.Cancel): // esc - back to list
+		m.mode = ViewList
+	}
+
 	return nil
 }
 

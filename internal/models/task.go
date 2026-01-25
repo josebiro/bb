@@ -69,3 +69,12 @@ func (t Task) IsBlocked() bool {
 func (t Task) FilePath() string {
 	return filepath.Join(".beads", "issues", t.ID+".md")
 }
+
+// Comment represents a comment on an issue
+type Comment struct {
+	ID        int       `json:"id"`
+	IssueID   string    `json:"issue_id"`
+	Author    string    `json:"author"`
+	Text      string    `json:"text"`
+	CreatedAt time.Time `json:"created_at"`
+}

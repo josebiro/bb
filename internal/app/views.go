@@ -30,6 +30,10 @@ func (m Model) View() string {
 		return m.viewMain()
 	case ViewEditTitle, ViewEditStatus, ViewEditPriority, ViewEditType, ViewFilter:
 		return m.viewMainWithModal()
+	case ViewAddComment:
+		return m.viewAddComment()
+	case ViewBoard:
+		return m.viewBoard()
 	default:
 		return m.viewMain()
 	}
@@ -125,6 +129,9 @@ Panels (h/l to cycle focus)
   Open        Tasks with status "open"
   Closed      Tasks with status "closed"
 
+Views
+  b           Toggle board view (Kanban columns)
+
 Filtering
   /           Start inline search in status bar
   (typing)    Filter updates live as you type
@@ -137,6 +144,7 @@ Actions
   a           Add new task
   x           Delete selected task
   R           Refresh list
+  S           Cycle sort mode (Default/Created/Priority/Updated)
 
 Field Editing
   e           Edit title (modal)
@@ -145,6 +153,7 @@ Field Editing
   t           Edit type (modal)
   y           Copy issue ID to clipboard
   d           Edit description ($EDITOR)
+  C           Add comment
 
 General
   ?           Toggle this help
@@ -192,6 +201,28 @@ func (m Model) viewConfirm() string {
 func (m Model) viewMainWithModal() string {
 	// Render the modal centered on screen
 	return m.modal.View(m.width, m.height)
+}
+
+func (m Model) viewAddComment() string {
+	var b strings.Builder
+
+	taskID := ""
+	if m.selected != nil {
+		taskID = m.selected.ID
+	}
+
+	b.WriteString(ui.TitleStyle.Render("Add Comment") + "\n")
+	b.WriteString(ui.HelpDescStyle.Render("Issue: "+taskID) + "\n\n")
+
+	// Comment input
+	inputStyle := ui.FormInputFocusedStyle.Width(m.width - 10)
+	b.WriteString(inputStyle.Render(m.commentInput.View()))
+	b.WriteString("\n\n")
+
+	// Help
+	b.WriteString(ui.HelpBarStyle.Render("enter: submit  esc: cancel"))
+
+	return b.String()
 }
 
 func (m Model) renderStatusBar() string {
@@ -267,6 +298,8 @@ func (m Model) renderStatusBar() string {
 			{"j/k", "nav"},
 			{"h/l", "panel"},
 			{"/", "filter"},
+			{"S", "sort"},
+			{"b", "board"},
 			{"enter", "detail"},
 			{"e/s/p/t/d", "edit"},
 			{"y", "copy"},
@@ -278,6 +311,14 @@ func (m Model) renderStatusBar() string {
 		for _, k := range keys {
 			part := ui.HelpKeyStyle.Render(k.key) + ":" + ui.HelpDescStyle.Render(k.desc)
 			parts = append(parts, part)
+		}
+
+		// Show current sort mode if not default
+		if m.sortMode != SortDefault {
+			sortPart := ui.HelpDescStyle.Render("[") +
+				ui.HelpKeyStyle.Render(m.sortMode.String()) +
+				ui.HelpDescStyle.Render("]")
+			parts = append(parts, sortPart)
 		}
 	}
 
@@ -420,6 +461,26 @@ func (m *Model) updateDetailContent() {
 		b.WriteString("\n")
 	}
 
+	// Comments section
+	if len(m.comments) > 0 {
+		b.WriteString("\n")
+		b.WriteString(ui.DetailLabelStyle.Render(fmt.Sprintf("Comments (%d):", len(m.comments))))
+		b.WriteString("\n")
+		for _, c := range m.comments {
+			// Format: "author (date):"
+			header := fmt.Sprintf("  %s (%s):",
+				ui.HelpKeyStyle.Render(c.Author),
+				ui.HelpDescStyle.Render(c.CreatedAt.Format("2006-01-02 15:04")))
+			b.WriteString(header)
+			b.WriteString("\n")
+			// Indent comment text
+			lines := strings.Split(c.Text, "\n")
+			for _, line := range lines {
+				b.WriteString("    " + line + "\n")
+			}
+		}
+	}
+
 	m.detail.SetContent(b.String())
 }
 
@@ -486,6 +547,117 @@ func (m Model) viewForm() string {
 	// Help
 	b.WriteString("\n")
 	b.WriteString(ui.HelpBarStyle.Render("tab/shift+tab: next/prev field  enter: submit  esc: cancel"))
+
+	return b.String()
+}
+
+func (m Model) viewBoard() string {
+	var b strings.Builder
+
+	// Title
+	b.WriteString(ui.TitleStyle.Render("Board View") + "\n\n")
+
+	// Get tasks for each column
+	var openTasks, inProgressTasks, closedTasks []string
+	for _, t := range m.tasks {
+		// Format: priority + ID + title (truncated)
+		priority := ui.PriorityStyle(t.Priority).Render(t.PriorityString())
+		id := ui.HelpDescStyle.Render(t.ID)
+		title := t.Title
+		if len(title) > 25 {
+			title = title[:22] + "..."
+		}
+		line := fmt.Sprintf("%s %s %s", priority, id, title)
+
+		switch t.Status {
+		case "open":
+			openTasks = append(openTasks, line)
+		case "in_progress":
+			inProgressTasks = append(inProgressTasks, line)
+		case "closed":
+			closedTasks = append(closedTasks, line)
+		}
+	}
+
+	// Calculate column width (3 columns with spacing)
+	colWidth := (m.width - 8) / 3
+	if colWidth < 20 {
+		colWidth = 20
+	}
+
+	// Column height (screen height minus header and footer)
+	colHeight := m.height - 6
+	if colHeight < 5 {
+		colHeight = 5
+	}
+
+	// Build column headers with counts
+	openHeader := fmt.Sprintf("Open (%d)", len(openTasks))
+	inProgressHeader := fmt.Sprintf("In Progress (%d)", len(inProgressTasks))
+	closedHeader := fmt.Sprintf("Closed (%d)", len(closedTasks))
+
+	// Style for focused vs unfocused columns
+	focusedHeaderStyle := ui.TitleStyle.Copy().Width(colWidth).Align(lipgloss.Center)
+	unfocusedHeaderStyle := ui.HelpDescStyle.Copy().Width(colWidth).Align(lipgloss.Center)
+
+	// Render headers
+	var headers []string
+	if m.boardColumn == 0 {
+		headers = append(headers, focusedHeaderStyle.Render(openHeader))
+	} else {
+		headers = append(headers, unfocusedHeaderStyle.Render(openHeader))
+	}
+	if m.boardColumn == 1 {
+		headers = append(headers, focusedHeaderStyle.Render(inProgressHeader))
+	} else {
+		headers = append(headers, unfocusedHeaderStyle.Render(inProgressHeader))
+	}
+	if m.boardColumn == 2 {
+		headers = append(headers, focusedHeaderStyle.Render(closedHeader))
+	} else {
+		headers = append(headers, unfocusedHeaderStyle.Render(closedHeader))
+	}
+	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, headers...))
+	b.WriteString("\n")
+
+	// Border style for columns
+	focusedColStyle := ui.FocusedPanelStyle.Copy().Width(colWidth).Height(colHeight)
+	unfocusedColStyle := ui.PanelStyle.Copy().Width(colWidth).Height(colHeight)
+
+	// Render column contents
+	renderColumn := func(tasks []string, focused bool, selectedRow int) string {
+		var lines []string
+		for i, task := range tasks {
+			if i >= colHeight-2 { // Leave room for borders
+				lines = append(lines, ui.HelpDescStyle.Render(fmt.Sprintf("... +%d more", len(tasks)-i)))
+				break
+			}
+			if focused && i == selectedRow {
+				// Highlight selected row
+				lines = append(lines, ui.SelectedTaskStyle.Render("> "+task))
+			} else {
+				lines = append(lines, "  "+task)
+			}
+		}
+		if len(tasks) == 0 {
+			lines = append(lines, ui.HelpDescStyle.Render("  (empty)"))
+		}
+		content := strings.Join(lines, "\n")
+		if focused {
+			return focusedColStyle.Render(content)
+		}
+		return unfocusedColStyle.Render(content)
+	}
+
+	col0 := renderColumn(openTasks, m.boardColumn == 0, m.boardRow)
+	col1 := renderColumn(inProgressTasks, m.boardColumn == 1, m.boardRow)
+	col2 := renderColumn(closedTasks, m.boardColumn == 2, m.boardRow)
+
+	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, col0, col1, col2))
+	b.WriteString("\n")
+
+	// Status bar
+	b.WriteString(ui.HelpBarStyle.Render("h/l:column  j/k:select  enter:detail  b:list view  ?:help  q:quit"))
 
 	return b.String()
 }

@@ -31,6 +31,8 @@ const (
 	ViewEditPriority
 	ViewEditType
 	ViewFilter
+	ViewAddComment
+	ViewBoard
 )
 
 // PanelFocus represents which panel is focused
@@ -42,6 +44,36 @@ const (
 	FocusClosed
 	panelCount
 )
+
+// SortMode represents how tasks are sorted
+type SortMode int
+
+const (
+	SortDefault    SortMode = iota // Priority then updated
+	SortCreatedAsc                 // Oldest first
+	SortCreatedDesc                // Newest first
+	SortPriority                   // Priority only
+	SortUpdated                    // Most recently updated first
+	sortModeCount
+)
+
+// String returns the display name for the sort mode
+func (s SortMode) String() string {
+	switch s {
+	case SortDefault:
+		return "Default"
+	case SortCreatedAsc:
+		return "Created ↑"
+	case SortCreatedDesc:
+		return "Created ↓"
+	case SortPriority:
+		return "Priority"
+	case SortUpdated:
+		return "Updated"
+	default:
+		return "?"
+	}
+}
 
 // taskItem wraps a Task for the list component
 type taskItem struct {
@@ -108,11 +140,22 @@ type Model struct {
 	searchMode  bool             // true when inline search is active
 	searchInput textinput.Model  // text input for inline search in status bar
 
+	// Sort mode
+	sortMode SortMode
+
+	// Board view state
+	boardColumn int // 0=Open, 1=In Progress, 2=Closed
+	boardRow    int // Selected row within the column
+
 	// Status message (flash notification)
 	statusMsg string
 
 	// Task lookup map for O(1) access by ID (used for linked issue display)
 	tasksMap map[string]*models.Task
+
+	// Comments for selected task
+	comments     []models.Comment
+	commentInput textinput.Model
 
 	// Custom commands from config
 	customCommands []config.CustomCommand
@@ -159,6 +202,12 @@ func New() Model {
 	formDesc.Placeholder = "Add details, context, or acceptance criteria (optional)"
 	formDesc.CharLimit = 1000
 
+	// Initialize comment input
+	commentInput := textinput.New()
+	commentInput.Prompt = ""
+	commentInput.Placeholder = "Enter your comment..."
+	commentInput.CharLimit = 1000
+
 	// Load config (ignore errors, use empty config)
 	cfg, _ := config.Load()
 	var customCmds []config.CustomCommand
@@ -187,6 +236,7 @@ func New() Model {
 		formDesc:        formDesc,
 		formPriority:    2,
 		formType:        "feature",
+		commentInput:    commentInput,
 		customCommands:  customCmds,
 	}
 }
@@ -324,6 +374,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Periodic refresh - reload tasks and schedule next tick
 		cmds = append(cmds, m.loadTasks(), pollTick())
 
+	case commentsLoadedMsg:
+		if msg.err != nil {
+			m.err = msg.err
+		} else {
+			m.comments = msg.comments
+		}
+
+	case commentAddedMsg:
+		if msg.err != nil {
+			m.err = msg.err
+		} else {
+			m.statusMsg = "Comment added!"
+			cmds = append(cmds, tea.Tick(statusFlashDuration, func(t time.Time) tea.Msg {
+				return clearStatusMsg{}
+			}))
+			// Reload comments
+			if m.selected != nil {
+				cmds = append(cmds, m.loadComments(m.selected.ID))
+			}
+		}
+		m.mode = ViewList
+
 	case clipboardCopiedMsg:
 		if msg.err != nil {
 			m.err = msg.err
@@ -384,6 +456,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Update help viewport for scrolling
 		var cmd tea.Cmd
 		m.helpViewport, cmd = m.helpViewport.Update(msg)
+		cmds = append(cmds, cmd)
+	case ViewAddComment:
+		// Update comment input
+		var cmd tea.Cmd
+		m.commentInput, cmd = m.commentInput.Update(msg)
 		cmds = append(cmds, cmd)
 	}
 
@@ -529,9 +606,41 @@ func (m *Model) distributeTasks() {
 		}
 	}
 
-	// Sort closed tasks by ClosedAt (most recently closed first)
+	// Apply sorting based on current sort mode
+	sortTasks := func(tasks []models.Task) {
+		switch m.sortMode {
+		case SortDefault:
+			// Priority (ascending), then updated (descending)
+			sort.Slice(tasks, func(i, j int) bool {
+				if tasks[i].Priority != tasks[j].Priority {
+					return tasks[i].Priority < tasks[j].Priority
+				}
+				return tasks[i].UpdatedAt.After(tasks[j].UpdatedAt)
+			})
+		case SortCreatedAsc:
+			sort.Slice(tasks, func(i, j int) bool {
+				return tasks[i].CreatedAt.Before(tasks[j].CreatedAt)
+			})
+		case SortCreatedDesc:
+			sort.Slice(tasks, func(i, j int) bool {
+				return tasks[i].CreatedAt.After(tasks[j].CreatedAt)
+			})
+		case SortPriority:
+			sort.Slice(tasks, func(i, j int) bool {
+				return tasks[i].Priority < tasks[j].Priority
+			})
+		case SortUpdated:
+			sort.Slice(tasks, func(i, j int) bool {
+				return tasks[i].UpdatedAt.After(tasks[j].UpdatedAt)
+			})
+		}
+	}
+
+	sortTasks(inProgress)
+	sortTasks(open)
+
+	// Sort closed tasks by ClosedAt (most recently closed first) - always
 	sort.Slice(closed, func(i, j int) bool {
-		// Tasks with ClosedAt come before those without
 		if closed[i].ClosedAt == nil && closed[j].ClosedAt == nil {
 			return false
 		}
@@ -541,7 +650,6 @@ func (m *Model) distributeTasks() {
 		if closed[j].ClosedAt == nil {
 			return true
 		}
-		// Most recently closed first (descending order)
 		return closed[i].ClosedAt.After(*closed[j].ClosedAt)
 	})
 
@@ -569,6 +677,36 @@ func (m *Model) getSelectedTask() *models.Task {
 		return m.openPanel.SelectedTask()
 	case FocusClosed:
 		return m.closedPanel.SelectedTask()
+	}
+	return nil
+}
+
+// getBoardSelectedTask returns the currently selected task in board view
+func (m *Model) getBoardSelectedTask() *models.Task {
+	var openTasks, inProgressTasks, closedTasks []models.Task
+	for _, t := range m.tasks {
+		switch t.Status {
+		case "open":
+			openTasks = append(openTasks, t)
+		case "in_progress":
+			inProgressTasks = append(inProgressTasks, t)
+		case "closed":
+			closedTasks = append(closedTasks, t)
+		}
+	}
+
+	var tasks []models.Task
+	switch m.boardColumn {
+	case 0:
+		tasks = openTasks
+	case 1:
+		tasks = inProgressTasks
+	case 2:
+		tasks = closedTasks
+	}
+
+	if m.boardRow >= 0 && m.boardRow < len(tasks) {
+		return &tasks[m.boardRow]
 	}
 	return nil
 }

@@ -53,6 +53,17 @@ type clipboardCopiedMsg struct {
 // clearStatusMsg clears the status flash message
 type clearStatusMsg struct{}
 
+// commentsLoadedMsg is sent when comments are loaded for a task
+type commentsLoadedMsg struct {
+	comments []models.Comment
+	err      error
+}
+
+// commentAddedMsg is sent when a comment is added
+type commentAddedMsg struct {
+	err error
+}
+
 // tickMsg triggers periodic refresh
 type tickMsg time.Time
 
@@ -69,5 +80,13 @@ func (m Model) loadTasks() tea.Cmd {
 		// Load all tasks so we can distribute them to the 3 panels
 		tasks, err := m.client.List("--all")
 		return tasksLoadedMsg{tasks: tasks, err: err}
+	}
+}
+
+// loadComments creates a command to load comments for a task
+func (m Model) loadComments(taskID string) tea.Cmd {
+	return func() tea.Msg {
+		comments, err := m.client.GetComments(taskID)
+		return commentsLoadedMsg{comments: comments, err: err}
 	}
 }

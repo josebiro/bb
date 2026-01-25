@@ -198,3 +198,28 @@ func (c *Client) Delete(id string) error {
 
 	return nil
 }
+
+// GetComments returns all comments for a task
+func (c *Client) GetComments(id string) ([]models.Comment, error) {
+	out, err := exec.Command("bd", "comments", id, "--json").Output()
+	if err != nil {
+		return nil, fmt.Errorf("bd comments failed: %w", err)
+	}
+
+	var comments []models.Comment
+	if err := json.Unmarshal(out, &comments); err != nil {
+		return nil, fmt.Errorf("failed to parse bd comments output: %w", err)
+	}
+
+	return comments, nil
+}
+
+// AddComment adds a comment to a task
+func (c *Client) AddComment(id string, text string) error {
+	cmd := exec.Command("bd", "comments", "add", id, text)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("bd comments add failed: %w", err)
+	}
+
+	return nil
+}
