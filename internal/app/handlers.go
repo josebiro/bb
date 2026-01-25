@@ -72,6 +72,7 @@ func (m *Model) handleListMouse(msg tea.MouseMsg) tea.Cmd {
 					// Clicked in detail area - open detail view if we have a selection
 					if m.selected != nil {
 						m.updateDetailContent()
+						m.previousMode = ViewList
 						m.mode = ViewDetail
 					}
 				}
@@ -455,6 +456,7 @@ func (m *Model) handleListKeys(msg tea.KeyMsg) tea.Cmd {
 			m.selected = task
 			m.comments = nil // Clear old comments
 			m.updateDetailContent()
+			m.previousMode = ViewList // Remember we came from list
 			m.mode = ViewDetail
 			return m.loadComments(task.ID)
 		}
@@ -682,7 +684,13 @@ func (m *Model) handleListKeys(msg tea.KeyMsg) tea.Cmd {
 func (m *Model) handleDetailKeys(msg tea.KeyMsg) tea.Cmd {
 	switch {
 	case key.Matches(msg, m.keys.Cancel), key.Matches(msg, m.keys.Select):
-		m.mode = ViewList
+		// Return to where we came from (board or list)
+		if m.previousMode == ViewBoard {
+			m.mode = ViewBoard
+		} else {
+			m.mode = ViewList
+		}
+		m.previousMode = ViewList // Reset
 	case key.Matches(msg, m.keys.Help):
 		m.mode = ViewHelp
 	default:
@@ -1034,12 +1042,13 @@ func (m *Model) handleBoardKeys(msg tea.KeyMsg) tea.Cmd {
 			selectionChanged = true
 		}
 
-	case key.Matches(msg, m.keys.Select): // enter - view task details (full screen in narrow mode)
+	case key.Matches(msg, m.keys.Select): // enter - view task details
 		task := m.getBoardSelectedTask()
 		if task != nil {
 			m.selected = task
 			m.comments = nil
 			m.updateDetailContent()
+			m.previousMode = ViewBoard // Remember we came from board
 			m.mode = ViewDetail
 			return m.loadComments(task.ID)
 		}

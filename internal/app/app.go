@@ -173,8 +173,9 @@ type Model struct {
 	sortMode SortMode
 
 	// Board view state
-	boardColumn int // 0=Open, 1=In Progress, 2=Closed
-	boardRow    int // Selected row within the column
+	boardColumn  int      // 0=Open, 1=In Progress, 2=Closed
+	boardRow     int      // Selected row within the column
+	previousMode ViewMode // Track where user came from (for returning from detail view)
 
 	// Status message (flash notification)
 	statusMsg string
