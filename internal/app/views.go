@@ -370,7 +370,16 @@ func (m *Model) updateDetailContent() {
 		b.WriteString(ui.DetailLabelStyle.Render("Blocked by:"))
 		b.WriteString("\n")
 		for _, id := range t.BlockedBy {
-			b.WriteString("  - " + id + "\n")
+			if linked, ok := m.tasksMap[id]; ok {
+				// Show priority, ID, title, and status
+				priority := ui.PriorityStyle(linked.Priority).Render(linked.PriorityString())
+				idStyled := ui.HelpDescStyle.Render(id)
+				status := ui.StatusStyle(linked.Status).Render("[" + linked.Status + "]")
+				b.WriteString(fmt.Sprintf("  %s %s %s %s\n", priority, idStyled, linked.Title, status))
+			} else {
+				// Fallback: just show ID if task not in memory
+				b.WriteString("  - " + id + "\n")
+			}
 		}
 	}
 
@@ -379,7 +388,16 @@ func (m *Model) updateDetailContent() {
 		b.WriteString(ui.DetailLabelStyle.Render("Blocks:"))
 		b.WriteString("\n")
 		for _, id := range t.Blocks {
-			b.WriteString("  - " + id + "\n")
+			if linked, ok := m.tasksMap[id]; ok {
+				// Show priority, ID, title, and status
+				priority := ui.PriorityStyle(linked.Priority).Render(linked.PriorityString())
+				idStyled := ui.HelpDescStyle.Render(id)
+				status := ui.StatusStyle(linked.Status).Render("[" + linked.Status + "]")
+				b.WriteString(fmt.Sprintf("  %s %s %s %s\n", priority, idStyled, linked.Title, status))
+			} else {
+				// Fallback: just show ID if task not in memory
+				b.WriteString("  - " + id + "\n")
+			}
 		}
 	}
 

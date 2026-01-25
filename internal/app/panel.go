@@ -48,6 +48,12 @@ func (d panelDelegate) Render(w io.Writer, m list.Model, index int, item list.It
 
 	isSelected := index == m.Index()
 
+	// Blocked indicator
+	blockedIndicator := ""
+	if t.task.IsBlocked() {
+		blockedIndicator = "⊘"
+	}
+
 	priority := t.task.PriorityString()
 	issueID := t.task.ID
 	title := t.task.Title
@@ -57,9 +63,14 @@ func (d panelDelegate) Render(w io.Writer, m list.Model, index int, item list.It
 		width = 40
 	}
 
-	// Calculate available width for title (account for priority, issue ID, spaces)
-	// Format: " P# issue-id title"
-	prefixWidth := lipgloss.Width(fmt.Sprintf(" %s %s ", priority, issueID))
+	// Calculate available width for title (account for blocked indicator, priority, issue ID, spaces)
+	// Format: " ⊘ P# issue-id title" or " P# issue-id title"
+	var prefixWidth int
+	if blockedIndicator != "" {
+		prefixWidth = lipgloss.Width(fmt.Sprintf(" %s %s %s ", blockedIndicator, priority, issueID))
+	} else {
+		prefixWidth = lipgloss.Width(fmt.Sprintf(" %s %s ", priority, issueID))
+	}
 	maxTitleWidth := width - prefixWidth
 	if maxTitleWidth < 5 {
 		maxTitleWidth = 5
@@ -76,7 +87,12 @@ func (d panelDelegate) Render(w io.Writer, m list.Model, index int, item list.It
 
 	if isSelected && d.focused {
 		// Show highlight only when panel is focused
-		line := fmt.Sprintf(" %s %s %s", priority, issueID, title)
+		var line string
+		if blockedIndicator != "" {
+			line = fmt.Sprintf(" %s %s %s %s", blockedIndicator, priority, issueID, title)
+		} else {
+			line = fmt.Sprintf(" %s %s %s", priority, issueID, title)
+		}
 		style := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("15")).
 			Background(lipgloss.Color("#2a4a6d")).
@@ -86,11 +102,21 @@ func (d panelDelegate) Render(w io.Writer, m list.Model, index int, item list.It
 	} else {
 		priorityStyle := ui.PriorityStyle(t.task.Priority)
 		idStyle := lipgloss.NewStyle().Foreground(ui.ColorMuted)
+		blockedStyle := lipgloss.NewStyle().Foreground(ui.ColorDanger)
 
-		line := fmt.Sprintf(" %s %s %s",
-			priorityStyle.Render(priority),
-			idStyle.Render(issueID),
-			title)
+		var line string
+		if blockedIndicator != "" {
+			line = fmt.Sprintf(" %s %s %s %s",
+				blockedStyle.Render(blockedIndicator),
+				priorityStyle.Render(priority),
+				idStyle.Render(issueID),
+				title)
+		} else {
+			line = fmt.Sprintf(" %s %s %s",
+				priorityStyle.Render(priority),
+				idStyle.Render(issueID),
+				title)
+		}
 		// Ensure line doesn't exceed width
 		style := lipgloss.NewStyle().Width(width).MaxWidth(width)
 		fmt.Fprint(w, style.Render(line))

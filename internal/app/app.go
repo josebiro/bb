@@ -111,6 +111,9 @@ type Model struct {
 	// Status message (flash notification)
 	statusMsg string
 
+	// Task lookup map for O(1) access by ID (used for linked issue display)
+	tasksMap map[string]*models.Task
+
 	// Custom commands from config
 	customCommands []config.CustomCommand
 }
@@ -499,6 +502,12 @@ func (m *Model) updateSizes() {
 }
 
 func (m *Model) distributeTasks() {
+	// Build task lookup map for O(1) access (used for linked issue display)
+	m.tasksMap = make(map[string]*models.Task)
+	for i := range m.tasks {
+		m.tasksMap[m.tasks[i].ID] = &m.tasks[i]
+	}
+
 	var inProgress, open, closed []models.Task
 	filterLower := strings.ToLower(m.filterQuery)
 	for _, t := range m.tasks {
