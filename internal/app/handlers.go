@@ -12,10 +12,10 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"lazybeads/internal/beads"
-	"lazybeads/internal/config"
-	"lazybeads/internal/models"
-	"lazybeads/internal/ui"
+	"github.com/josebiro/lazybeads/internal/beads"
+	"github.com/josebiro/lazybeads/internal/config"
+	"github.com/josebiro/lazybeads/internal/models"
+	"github.com/josebiro/lazybeads/internal/ui"
 )
 
 func (m *Model) handleKeyPress(msg tea.KeyMsg) tea.Cmd {
