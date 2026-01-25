@@ -11,10 +11,10 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"lazybeads/internal/beads"
-	"lazybeads/internal/config"
-	"lazybeads/internal/models"
-	"lazybeads/internal/ui"
+	"github.com/josebiro/lazybeads/internal/beads"
+	"github.com/josebiro/lazybeads/internal/config"
+	"github.com/josebiro/lazybeads/internal/models"
+	"github.com/josebiro/lazybeads/internal/ui"
 )
 
 // ViewMode represents the current view
