@@ -23,8 +23,8 @@ func (m Model) View() string {
 	case ViewForm:
 		return m.viewForm()
 	case ViewDetail:
-		if m.width < 80 {
-			// Narrow mode: full screen detail
+		if m.width < 80 || m.previousMode == ViewBoard {
+			// Narrow mode OR coming from board: full screen detail overlay
 			return m.viewDetailOverlay()
 		}
 		return m.viewMain()
