@@ -182,6 +182,26 @@ func (p PanelModel) TaskCount() int {
 	return len(p.tasks)
 }
 
+// SelectIndex selects the item at the given index
+func (p *PanelModel) SelectIndex(index int) {
+	if index >= 0 && index < len(p.tasks) {
+		p.list.Select(index)
+	}
+}
+
+// ScrollBy scrolls the selection by the given amount (positive = down, negative = up)
+func (p *PanelModel) ScrollBy(amount int) {
+	if amount > 0 {
+		for i := 0; i < amount; i++ {
+			p.list.CursorDown()
+		}
+	} else {
+		for i := 0; i < -amount; i++ {
+			p.list.CursorUp()
+		}
+	}
+}
+
 // Update handles messages for the panel
 func (p PanelModel) Update(msg tea.Msg) (PanelModel, tea.Cmd) {
 	if !p.focused {

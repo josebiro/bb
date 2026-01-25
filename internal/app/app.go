@@ -215,6 +215,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.updateSizes()
 
+	case tea.MouseMsg:
+		cmd := m.handleMouseEvent(msg)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		return m, tea.Batch(cmds...)
+
 	case tea.KeyMsg:
 		// Global key handling - intercept before components
 		switch msg.String() {

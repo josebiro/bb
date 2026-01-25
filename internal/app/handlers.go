@@ -18,6 +18,272 @@ import (
 	"github.com/josebiro/lazybeads/internal/ui"
 )
 
+// handleMouseEvent handles all mouse events
+func (m *Model) handleMouseEvent(msg tea.MouseMsg) tea.Cmd {
+	switch m.mode {
+	case ViewList:
+		return m.handleListMouse(msg)
+	case ViewDetail:
+		return m.handleDetailMouse(msg)
+	case ViewHelp:
+		return m.handleHelpMouse(msg)
+	case ViewEditStatus, ViewEditPriority, ViewEditType:
+		return m.handleModalMouse(msg)
+	}
+	return nil
+}
+
+// handleListMouse handles mouse events in the list view
+func (m *Model) handleListMouse(msg tea.MouseMsg) tea.Cmd {
+	// Exit search mode on any click
+	if m.searchMode && msg.Action == tea.MouseActionPress {
+		m.searchMode = false
+		m.searchInput.Blur()
+	}
+
+	// Calculate panel boundaries
+	panelBounds := m.calculatePanelBounds()
+
+	switch msg.Action {
+	case tea.MouseActionPress:
+		if msg.Button == tea.MouseButtonLeft {
+			// Check which panel was clicked
+			for panel, bounds := range panelBounds {
+				if m.isPointInBounds(msg.X, msg.Y, bounds) {
+					// Focus this panel
+					m.focusPanelByType(panel)
+
+					// Calculate which item was clicked (accounting for border)
+					itemIndex := msg.Y - bounds.top - 1 // -1 for top border
+					if itemIndex >= 0 {
+						m.selectItemInPanel(panel, itemIndex)
+					}
+					break
+				}
+			}
+
+			// Check if click is in the detail panel (wide mode)
+			if m.width >= 80 {
+				detailLeft := m.width / 2
+				if msg.X >= detailLeft {
+					// Clicked in detail area - open detail view if we have a selection
+					if m.selected != nil {
+						m.updateDetailContent()
+						m.mode = ViewDetail
+					}
+				}
+			}
+		}
+
+	case tea.MouseActionRelease:
+		if msg.Button == tea.MouseButtonWheelUp {
+			// Scroll up in the focused panel
+			m.scrollFocusedPanel(-3)
+		} else if msg.Button == tea.MouseButtonWheelDown {
+			// Scroll down in the focused panel
+			m.scrollFocusedPanel(3)
+		}
+	}
+
+	return nil
+}
+
+// panelBounds represents the screen bounds of a panel
+type panelBounds struct {
+	top, bottom, left, right int
+}
+
+// calculatePanelBounds calculates the screen bounds for each visible panel
+func (m *Model) calculatePanelBounds() map[PanelFocus]panelBounds {
+	bounds := make(map[PanelFocus]panelBounds)
+
+	// Panel width is half the screen in wide mode, full width in narrow mode
+	var panelWidth int
+	if m.width >= 80 {
+		panelWidth = m.width / 2
+	} else {
+		panelWidth = m.width
+	}
+
+	currentY := 0
+
+	// In Progress panel (if visible)
+	if m.isInProgressVisible() {
+		h := m.inProgressPanel.height
+		bounds[FocusInProgress] = panelBounds{
+			top:    currentY,
+			bottom: currentY + h,
+			left:   0,
+			right:  panelWidth,
+		}
+		currentY += h
+	}
+
+	// Open panel
+	h := m.openPanel.height
+	bounds[FocusOpen] = panelBounds{
+		top:    currentY,
+		bottom: currentY + h,
+		left:   0,
+		right:  panelWidth,
+	}
+	currentY += h
+
+	// Closed panel
+	h = m.closedPanel.height
+	bounds[FocusClosed] = panelBounds{
+		top:    currentY,
+		bottom: currentY + h,
+		left:   0,
+		right:  panelWidth,
+	}
+
+	return bounds
+}
+
+// isPointInBounds checks if a point is within the given bounds
+func (m *Model) isPointInBounds(x, y int, bounds panelBounds) bool {
+	return x >= bounds.left && x < bounds.right && y >= bounds.top && y < bounds.bottom
+}
+
+// focusPanelByType focuses the specified panel
+func (m *Model) focusPanelByType(panel PanelFocus) {
+	// Track if we're leaving/entering the Closed panel for collapse handling
+	wasClosedFocused := m.focusedPanel == FocusClosed
+
+	// Clear focus from current panel
+	switch m.focusedPanel {
+	case FocusInProgress:
+		m.inProgressPanel.SetFocus(false)
+	case FocusOpen:
+		m.openPanel.SetFocus(false)
+	case FocusClosed:
+		m.closedPanel.SetFocus(false)
+	}
+
+	// Set focus on new panel
+	m.focusedPanel = panel
+	switch panel {
+	case FocusInProgress:
+		m.inProgressPanel.SetFocus(true)
+	case FocusOpen:
+		m.openPanel.SetFocus(true)
+	case FocusClosed:
+		m.closedPanel.SetFocus(true)
+	}
+
+	// Handle Closed panel collapse/expand
+	nowClosedFocused := m.focusedPanel == FocusClosed
+	if wasClosedFocused && !nowClosedFocused {
+		m.closedPanel.SetCollapsed(true)
+		m.updateSizes()
+	} else if !wasClosedFocused && nowClosedFocused {
+		m.closedPanel.SetCollapsed(false)
+		m.updateSizes()
+	}
+
+	m.selected = m.getSelectedTask()
+}
+
+// selectItemInPanel selects an item by index in the specified panel
+func (m *Model) selectItemInPanel(panel PanelFocus, index int) {
+	switch panel {
+	case FocusInProgress:
+		m.inProgressPanel.SelectIndex(index)
+	case FocusOpen:
+		m.openPanel.SelectIndex(index)
+	case FocusClosed:
+		m.closedPanel.SelectIndex(index)
+	}
+	m.selected = m.getSelectedTask()
+}
+
+// scrollFocusedPanel scrolls the focused panel by the given amount
+func (m *Model) scrollFocusedPanel(amount int) {
+	switch m.focusedPanel {
+	case FocusInProgress:
+		m.inProgressPanel.ScrollBy(amount)
+	case FocusOpen:
+		m.openPanel.ScrollBy(amount)
+	case FocusClosed:
+		m.closedPanel.ScrollBy(amount)
+	}
+	m.selected = m.getSelectedTask()
+}
+
+// handleDetailMouse handles mouse events in the detail view
+func (m *Model) handleDetailMouse(msg tea.MouseMsg) tea.Cmd {
+	switch msg.Action {
+	case tea.MouseActionPress:
+		if msg.Button == tea.MouseButtonLeft {
+			// Click anywhere to go back to list
+			m.mode = ViewList
+		}
+	case tea.MouseActionRelease:
+		if msg.Button == tea.MouseButtonWheelUp {
+			m.detail.LineUp(3)
+		} else if msg.Button == tea.MouseButtonWheelDown {
+			m.detail.LineDown(3)
+		}
+	}
+	return nil
+}
+
+// handleHelpMouse handles mouse events in the help view
+func (m *Model) handleHelpMouse(msg tea.MouseMsg) tea.Cmd {
+	switch msg.Action {
+	case tea.MouseActionPress:
+		if msg.Button == tea.MouseButtonLeft {
+			// Click anywhere to close help
+			m.helpViewport.GotoTop()
+			m.mode = ViewList
+		}
+	case tea.MouseActionRelease:
+		if msg.Button == tea.MouseButtonWheelUp {
+			m.helpViewport.LineUp(3)
+		} else if msg.Button == tea.MouseButtonWheelDown {
+			m.helpViewport.LineDown(3)
+		}
+	}
+	return nil
+}
+
+// handleModalMouse handles mouse events in modal dialogs
+func (m *Model) handleModalMouse(msg tea.MouseMsg) tea.Cmd {
+	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
+		return nil
+	}
+
+	// Calculate modal bounds (centered on screen)
+	modalWidth := 40
+	modalHeight := len(m.modal.Options) + 4 // header + options + padding
+	modalLeft := (m.width - modalWidth) / 2
+	modalTop := (m.height - modalHeight) / 2
+
+	// Check if click is outside modal (dismiss)
+	if msg.X < modalLeft || msg.X >= modalLeft+modalWidth ||
+		msg.Y < modalTop || msg.Y >= modalTop+modalHeight {
+		m.mode = ViewList
+		return nil
+	}
+
+	// Check if click is on an option
+	optionStart := modalTop + 2 // After header
+	clickedOption := msg.Y - optionStart
+	if clickedOption >= 0 && clickedOption < len(m.modal.Options) {
+		m.modal.Selected = clickedOption
+		// Apply the selection
+		if m.selected != nil {
+			value := m.modal.SelectedValue()
+			taskID := m.selected.ID
+			m.mode = ViewList
+			return m.applyModalSelection(taskID, value)
+		}
+	}
+
+	return nil
+}
+
 func (m *Model) handleKeyPress(msg tea.KeyMsg) tea.Cmd {
 	// If in search mode, handle search keys first
 	if m.searchMode {
