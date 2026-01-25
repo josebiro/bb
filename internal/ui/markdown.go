@@ -1,36 +1,42 @@
 package ui
 
 import (
+	"sync"
+
 	"github.com/charmbracelet/glamour"
 )
 
-var mdRenderer *glamour.TermRenderer
+var (
+	// Cached renderer to avoid repeated terminal queries that corrupt input
+	cachedRenderer     *glamour.TermRenderer
+	cachedRendererOnce sync.Once
+	cachedWidth        int
+)
 
-func init() {
-	// Initialize markdown renderer with dark style
-	r, err := glamour.NewTermRenderer(
-		glamour.WithAutoStyle(),
-		glamour.WithWordWrap(0), // We'll handle wrapping ourselves
-	)
-	if err != nil {
-		// Fallback: no rendering
-		return
-	}
-	mdRenderer = r
+// getRenderer returns a cached glamour renderer, creating it on first use.
+// This prevents repeated terminal color queries that interfere with keyboard input.
+func getRenderer(width int) *glamour.TermRenderer {
+	cachedRendererOnce.Do(func() {
+		r, err := glamour.NewTermRenderer(
+			glamour.WithAutoStyle(),
+			glamour.WithWordWrap(width),
+		)
+		if err == nil {
+			cachedRenderer = r
+			cachedWidth = width
+		}
+	})
+	return cachedRenderer
 }
 
 // RenderMarkdown renders markdown text to styled terminal output
 func RenderMarkdown(text string, width int) string {
-	if mdRenderer == nil || text == "" {
+	if text == "" {
 		return text
 	}
 
-	// Create a new renderer with the specific width
-	r, err := glamour.NewTermRenderer(
-		glamour.WithAutoStyle(),
-		glamour.WithWordWrap(width),
-	)
-	if err != nil {
+	r := getRenderer(width)
+	if r == nil {
 		return text
 	}
 

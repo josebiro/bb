@@ -28,8 +28,7 @@ type PanelModel struct {
 
 // panelDelegate is a custom delegate for rendering task items in panels
 type panelDelegate struct {
-	listWidth int
-	focused   bool
+	focused bool
 }
 
 func newPanelDelegate() panelDelegate {
@@ -47,6 +46,7 @@ func (d panelDelegate) Render(w io.Writer, m list.Model, index int, item list.It
 	}
 
 	isSelected := index == m.Index()
+	focused := d.focused
 
 	// Blocked indicator
 	blockedIndicator := ""
@@ -85,7 +85,7 @@ func (d panelDelegate) Render(w io.Writer, m list.Model, index int, item list.It
 		title = title + "..."
 	}
 
-	if isSelected && d.focused {
+	if isSelected && focused {
 		// Show highlight only when panel is focused
 		var line string
 		if blockedIndicator != "" {
@@ -172,8 +172,9 @@ func (p *PanelModel) SetSize(width, height int) {
 // SetFocus sets whether this panel is focused
 func (p *PanelModel) SetFocus(focused bool) {
 	p.focused = focused
-	// Update delegate so it knows whether to show selection highlight
-	p.list.SetDelegate(panelDelegate{focused: focused})
+	// Note: We no longer call SetDelegate here to avoid potential issues
+	// with bubbles list internal state. The delegate's focused field is
+	// checked at render time instead via the panel's focused field.
 }
 
 // IsFocused returns whether this panel is focused
@@ -248,6 +249,7 @@ func (p PanelModel) Update(msg tea.Msg) (PanelModel, tea.Cmd) {
 // HandleKey handles key navigation within the panel
 func (p *PanelModel) HandleKey(msg tea.KeyMsg, keys ui.KeyMap) bool {
 	if !p.focused {
+		// DEBUG: log that panel is not focused
 		return false
 	}
 
@@ -282,6 +284,10 @@ func (p *PanelModel) HandleKey(msg tea.KeyMsg, keys ui.KeyMap) bool {
 
 // View renders the panel with title embedded in the top border
 func (p PanelModel) View() string {
+	// Update delegate's focused state before rendering
+	// This is safe to do in View since it's outside the Update cycle
+	p.list.SetDelegate(panelDelegate{focused: p.focused})
+
 	// If collapsed, render a single-line view
 	if p.collapsed {
 		return p.viewCollapsed()
