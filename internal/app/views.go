@@ -643,14 +643,49 @@ func (m Model) viewBoard() string {
 	focusedColStyle := ui.FocusedPanelStyle.Copy().Width(colWidth).Height(colHeight)
 	unfocusedColStyle := ui.PanelStyle.Copy().Width(colWidth).Height(colHeight)
 
-	// Render column contents
+	// Render column contents with scrolling support
 	renderColumn := func(tasks []string, focused bool, selectedRow int) string {
 		var lines []string
-		for i, task := range tasks {
-			if i >= colHeight-2 { // Leave room for borders
-				lines = append(lines, ui.HelpDescStyle.Render(fmt.Sprintf("... +%d more", len(tasks)-i)))
-				break
+		visibleRows := colHeight - 2 // Leave room for borders
+		if visibleRows < 1 {
+			visibleRows = 1
+		}
+
+		// Calculate scroll offset to keep selected row visible
+		scrollOffset := 0
+		if len(tasks) > visibleRows {
+			// Center the selected row in the viewport when possible
+			scrollOffset = selectedRow - visibleRows/2
+			if scrollOffset < 0 {
+				scrollOffset = 0
 			}
+			maxOffset := len(tasks) - visibleRows
+			if scrollOffset > maxOffset {
+				scrollOffset = maxOffset
+			}
+		}
+
+		// Show scroll indicator at top if scrolled
+		if scrollOffset > 0 {
+			lines = append(lines, ui.HelpDescStyle.Render(fmt.Sprintf("  ↑ %d more", scrollOffset)))
+			visibleRows-- // One less row for content
+		}
+
+		// Render visible tasks
+		endIdx := scrollOffset + visibleRows
+		if scrollOffset > 0 {
+			endIdx = scrollOffset + visibleRows // Account for top indicator
+		}
+		if endIdx > len(tasks) {
+			endIdx = len(tasks)
+		}
+
+		for i := scrollOffset; i < endIdx; i++ {
+			// Skip top scroll indicator row count
+			if scrollOffset > 0 && i == scrollOffset && len(lines) > 0 {
+				// Already added top indicator
+			}
+			task := tasks[i]
 			if focused && i == selectedRow {
 				// Highlight selected row
 				lines = append(lines, ui.SelectedTaskStyle.Render("> "+task))
@@ -658,6 +693,13 @@ func (m Model) viewBoard() string {
 				lines = append(lines, "  "+task)
 			}
 		}
+
+		// Show scroll indicator at bottom if more items
+		if endIdx < len(tasks) {
+			remaining := len(tasks) - endIdx
+			lines = append(lines, ui.HelpDescStyle.Render(fmt.Sprintf("  ↓ %d more", remaining)))
+		}
+
 		if len(tasks) == 0 {
 			lines = append(lines, ui.HelpDescStyle.Render("  (empty)"))
 		}
