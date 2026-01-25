@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"lazybeads/internal/models"
+	"github.com/josebiro/lazybeads/internal/models"
 )
 
 // Client wraps the bd CLI commands
