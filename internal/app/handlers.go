@@ -220,8 +220,13 @@ func (m *Model) handleDetailMouse(msg tea.MouseMsg) tea.Cmd {
 	switch msg.Action {
 	case tea.MouseActionPress:
 		if msg.Button == tea.MouseButtonLeft {
-			// Click anywhere to go back to list
-			m.mode = ViewList
+			// Click anywhere to go back to where we came from (board or list)
+			if m.previousMode == ViewBoard {
+				m.mode = ViewBoard
+			} else {
+				m.mode = ViewList
+			}
+			m.previousMode = ViewList // Reset
 		}
 	case tea.MouseActionRelease:
 		if msg.Button == tea.MouseButtonWheelUp {
@@ -291,6 +296,9 @@ func (m *Model) handleBoardMouse(msg tea.MouseMsg) tea.Cmd {
 		return count
 	}
 
+	// Double-click threshold (300ms is typical for double-click detection)
+	const doubleClickThreshold = 300 * time.Millisecond
+
 	switch msg.Action {
 	case tea.MouseActionPress:
 		if msg.Button == tea.MouseButtonLeft {
@@ -308,25 +316,57 @@ func (m *Model) handleBoardMouse(msg tea.MouseMsg) tea.Cmd {
 
 			if clickedColumn >= 0 {
 				// Calculate which row was clicked (accounting for header and borders)
-				clickedRow := msg.Y - colTop - 1 // -1 for column border
+				// Each card is 3 lines tall, so divide by card height
+				cardHeight := 3
+				clickedRow := (msg.Y - colTop - 1) / cardHeight // -1 for column border
 
 				// Get task count for clicked column
 				columnCount := getColumnCount(clickedColumn)
 
-				// Update selection if valid
-				if clickedRow >= 0 && clickedRow < columnCount {
+				// Check for double-click on same task
+				now := time.Now()
+				isDoubleClick := clickedRow >= 0 &&
+					clickedRow < columnCount &&
+					clickedColumn == m.lastClickColumn &&
+					clickedRow == m.lastClickRow &&
+					now.Sub(m.lastClickTime) < doubleClickThreshold
+
+				if isDoubleClick {
+					// Double-click: open detail view
 					m.boardColumn = clickedColumn
 					m.boardRow = clickedRow
 					m.selected = m.getBoardSelectedTask()
-				} else if clickedRow >= 0 {
-					// Clicked in column but below tasks - just focus the column
-					m.boardColumn = clickedColumn
-					if columnCount > 0 {
-						m.boardRow = columnCount - 1
-					} else {
-						m.boardRow = 0
+					if m.selected != nil {
+						m.comments = nil
+						m.updateDetailContent()
+						m.previousMode = ViewBoard
+						m.mode = ViewDetail
+						// Reset click tracking
+						m.lastClickTime = time.Time{}
+						return m.loadComments(m.selected.ID)
 					}
-					m.selected = m.getBoardSelectedTask()
+				} else {
+					// Single click: select the task
+					if clickedRow >= 0 && clickedRow < columnCount {
+						m.boardColumn = clickedColumn
+						m.boardRow = clickedRow
+						m.selected = m.getBoardSelectedTask()
+						// Track for double-click detection
+						m.lastClickTime = now
+						m.lastClickColumn = clickedColumn
+						m.lastClickRow = clickedRow
+					} else if clickedRow >= 0 {
+						// Clicked in column but below tasks - just focus the column
+						m.boardColumn = clickedColumn
+						if columnCount > 0 {
+							m.boardRow = columnCount - 1
+						} else {
+							m.boardRow = 0
+						}
+						m.selected = m.getBoardSelectedTask()
+						// Reset click tracking since we didn't click on a valid task
+						m.lastClickTime = time.Time{}
+					}
 				}
 			}
 		}

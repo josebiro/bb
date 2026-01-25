@@ -173,9 +173,14 @@ type Model struct {
 	sortMode SortMode
 
 	// Board view state
-	boardColumn  int      // 0=Open, 1=In Progress, 2=Closed
+	boardColumn  int      // 0=Blocked, 1=Ready, 2=In Progress, 3=Done
 	boardRow     int      // Selected row within the column
 	previousMode ViewMode // Track where user came from (for returning from detail view)
+
+	// Double-click detection for board view
+	lastClickTime   time.Time // Time of last click
+	lastClickColumn int       // Column of last click
+	lastClickRow    int       // Row of last click
 
 	// Status message (flash notification)
 	statusMsg string
