@@ -387,6 +387,12 @@ func (m *Model) updateDetailContent() {
 		b.WriteString("\n")
 	}
 
+	if t.Owner != "" {
+		b.WriteString(ui.DetailLabelStyle.Render("Owner:"))
+		b.WriteString(ui.DetailValueStyle.Render(t.Owner))
+		b.WriteString("\n")
+	}
+
 	if len(t.Labels) > 0 {
 		b.WriteString(ui.DetailLabelStyle.Render("Labels:"))
 		b.WriteString(ui.DetailValueStyle.Render(strings.Join(t.Labels, ", ")))
@@ -416,6 +422,39 @@ func (m *Model) updateDetailContent() {
 		}
 		renderedDesc := ui.RenderMarkdown(t.Description, descWidth)
 		b.WriteString(renderedDesc)
+	}
+
+	if t.Design != "" {
+		b.WriteString("\n")
+		b.WriteString(ui.DetailLabelStyle.Render("Design:"))
+		b.WriteString("\n")
+		descWidth := m.detail.Width - 2
+		if descWidth < 20 {
+			descWidth = 20
+		}
+		b.WriteString(ui.RenderMarkdown(t.Design, descWidth))
+	}
+
+	if t.Notes != "" {
+		b.WriteString("\n")
+		b.WriteString(ui.DetailLabelStyle.Render("Notes:"))
+		b.WriteString("\n")
+		descWidth := m.detail.Width - 2
+		if descWidth < 20 {
+			descWidth = 20
+		}
+		b.WriteString(ui.RenderMarkdown(t.Notes, descWidth))
+	}
+
+	if t.AcceptanceCriteria != "" {
+		b.WriteString("\n")
+		b.WriteString(ui.DetailLabelStyle.Render("Acceptance:"))
+		b.WriteString("\n")
+		descWidth := m.detail.Width - 2
+		if descWidth < 20 {
+			descWidth = 20
+		}
+		b.WriteString(ui.RenderMarkdown(t.AcceptanceCriteria, descWidth))
 	}
 
 	if t.CloseReason != "" {

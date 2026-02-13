@@ -49,7 +49,8 @@ func (m *Model) handleListMouse(msg tea.MouseMsg) tea.Cmd {
 
 	switch msg.Action {
 	case tea.MouseActionPress:
-		if msg.Button == tea.MouseButtonLeft {
+		switch msg.Button {
+		case tea.MouseButtonLeft:
 			// Check which panel was clicked
 			for panel, bounds := range panelBounds {
 				if m.isPointInBounds(msg.X, msg.Y, bounds) {
@@ -77,15 +78,23 @@ func (m *Model) handleListMouse(msg tea.MouseMsg) tea.Cmd {
 					}
 				}
 			}
-		}
 
-	case tea.MouseActionRelease:
-		if msg.Button == tea.MouseButtonWheelUp {
-			// Scroll up in the focused panel
-			m.scrollFocusedPanel(-3)
-		} else if msg.Button == tea.MouseButtonWheelDown {
-			// Scroll down in the focused panel
-			m.scrollFocusedPanel(3)
+		case tea.MouseButtonWheelUp:
+			// If mouse is over the detail panel in wide mode, scroll detail
+			if m.width >= 80 && msg.X >= m.width/2 {
+				m.updateDetailContent()
+				m.detail.LineUp(3)
+			} else {
+				m.scrollFocusedPanel(-3)
+			}
+
+		case tea.MouseButtonWheelDown:
+			if m.width >= 80 && msg.X >= m.width/2 {
+				m.updateDetailContent()
+				m.detail.LineDown(3)
+			} else {
+				m.scrollFocusedPanel(3)
+			}
 		}
 	}
 
@@ -217,42 +226,40 @@ func (m *Model) scrollFocusedPanel(amount int) {
 
 // handleDetailMouse handles mouse events in the detail view
 func (m *Model) handleDetailMouse(msg tea.MouseMsg) tea.Cmd {
-	switch msg.Action {
-	case tea.MouseActionPress:
-		if msg.Button == tea.MouseButtonLeft {
-			// Click anywhere to go back to where we came from (board or list)
-			if m.previousMode == ViewBoard {
-				m.mode = ViewBoard
-			} else {
-				m.mode = ViewList
-			}
-			m.previousMode = ViewList // Reset
+	if msg.Action != tea.MouseActionPress {
+		return nil
+	}
+	switch msg.Button {
+	case tea.MouseButtonLeft:
+		// Click anywhere to go back to where we came from (board or list)
+		if m.previousMode == ViewBoard {
+			m.mode = ViewBoard
+		} else {
+			m.mode = ViewList
 		}
-	case tea.MouseActionRelease:
-		if msg.Button == tea.MouseButtonWheelUp {
-			m.detail.LineUp(3)
-		} else if msg.Button == tea.MouseButtonWheelDown {
-			m.detail.LineDown(3)
-		}
+		m.previousMode = ViewList // Reset
+	case tea.MouseButtonWheelUp:
+		m.detail.LineUp(3)
+	case tea.MouseButtonWheelDown:
+		m.detail.LineDown(3)
 	}
 	return nil
 }
 
 // handleHelpMouse handles mouse events in the help view
 func (m *Model) handleHelpMouse(msg tea.MouseMsg) tea.Cmd {
-	switch msg.Action {
-	case tea.MouseActionPress:
-		if msg.Button == tea.MouseButtonLeft {
-			// Click anywhere to close help
-			m.helpViewport.GotoTop()
-			m.mode = ViewList
-		}
-	case tea.MouseActionRelease:
-		if msg.Button == tea.MouseButtonWheelUp {
-			m.helpViewport.LineUp(3)
-		} else if msg.Button == tea.MouseButtonWheelDown {
-			m.helpViewport.LineDown(3)
-		}
+	if msg.Action != tea.MouseActionPress {
+		return nil
+	}
+	switch msg.Button {
+	case tea.MouseButtonLeft:
+		// Click anywhere to close help
+		m.helpViewport.GotoTop()
+		m.mode = ViewList
+	case tea.MouseButtonWheelUp:
+		m.helpViewport.LineUp(3)
+	case tea.MouseButtonWheelDown:
+		m.helpViewport.LineDown(3)
 	}
 	return nil
 }
@@ -299,92 +306,92 @@ func (m *Model) handleBoardMouse(msg tea.MouseMsg) tea.Cmd {
 	// Double-click threshold (300ms is typical for double-click detection)
 	const doubleClickThreshold = 300 * time.Millisecond
 
-	switch msg.Action {
-	case tea.MouseActionPress:
-		if msg.Button == tea.MouseButtonLeft {
-			// Determine which column was clicked (4 columns: Blocked, Ready, In Progress, Done)
-			clickedColumn := -1
-			if msg.X < colWidth {
-				clickedColumn = 0 // Blocked
-			} else if msg.X < colWidth*2 {
-				clickedColumn = 1 // Ready
-			} else if msg.X < colWidth*3 {
-				clickedColumn = 2 // In Progress
-			} else if msg.X < colWidth*4 {
-				clickedColumn = 3 // Done
-			}
+	if msg.Action != tea.MouseActionPress {
+		return nil
+	}
 
-			if clickedColumn >= 0 {
-				// Calculate which row was clicked (accounting for header and borders)
-				// Each card is 3 lines tall, so divide by card height
-				cardHeight := 3
-				clickedRow := (msg.Y - colTop - 1) / cardHeight // -1 for column border
+	switch msg.Button {
+	case tea.MouseButtonLeft:
+		// Determine which column was clicked (4 columns: Blocked, Ready, In Progress, Done)
+		clickedColumn := -1
+		if msg.X < colWidth {
+			clickedColumn = 0 // Blocked
+		} else if msg.X < colWidth*2 {
+			clickedColumn = 1 // Ready
+		} else if msg.X < colWidth*3 {
+			clickedColumn = 2 // In Progress
+		} else if msg.X < colWidth*4 {
+			clickedColumn = 3 // Done
+		}
 
-				// Get task count for clicked column
-				columnCount := getColumnCount(clickedColumn)
+		if clickedColumn >= 0 {
+			// Calculate which row was clicked (accounting for header and borders)
+			// Each card is 3 lines tall, so divide by card height
+			cardHeight := 3
+			clickedRow := (msg.Y - colTop - 1) / cardHeight // -1 for column border
 
-				// Check for double-click on same task
-				now := time.Now()
-				isDoubleClick := clickedRow >= 0 &&
-					clickedRow < columnCount &&
-					clickedColumn == m.lastClickColumn &&
-					clickedRow == m.lastClickRow &&
-					now.Sub(m.lastClickTime) < doubleClickThreshold
+			// Get task count for clicked column
+			columnCount := getColumnCount(clickedColumn)
 
-				if isDoubleClick {
-					// Double-click: open detail view
+			// Check for double-click on same task
+			now := time.Now()
+			isDoubleClick := clickedRow >= 0 &&
+				clickedRow < columnCount &&
+				clickedColumn == m.lastClickColumn &&
+				clickedRow == m.lastClickRow &&
+				now.Sub(m.lastClickTime) < doubleClickThreshold
+
+			if isDoubleClick {
+				// Double-click: open detail view
+				m.boardColumn = clickedColumn
+				m.boardRow = clickedRow
+				m.selected = m.getBoardSelectedTask()
+				if m.selected != nil {
+					m.comments = nil
+					m.updateDetailContent()
+					m.previousMode = ViewBoard
+					m.mode = ViewDetail
+					// Reset click tracking
+					m.lastClickTime = time.Time{}
+					return m.loadComments(m.selected.ID)
+				}
+			} else {
+				// Single click: select the task
+				if clickedRow >= 0 && clickedRow < columnCount {
 					m.boardColumn = clickedColumn
 					m.boardRow = clickedRow
 					m.selected = m.getBoardSelectedTask()
-					if m.selected != nil {
-						m.comments = nil
-						m.updateDetailContent()
-						m.previousMode = ViewBoard
-						m.mode = ViewDetail
-						// Reset click tracking
-						m.lastClickTime = time.Time{}
-						return m.loadComments(m.selected.ID)
+					// Track for double-click detection
+					m.lastClickTime = now
+					m.lastClickColumn = clickedColumn
+					m.lastClickRow = clickedRow
+				} else if clickedRow >= 0 {
+					// Clicked in column but below tasks - just focus the column
+					m.boardColumn = clickedColumn
+					if columnCount > 0 {
+						m.boardRow = columnCount - 1
+					} else {
+						m.boardRow = 0
 					}
-				} else {
-					// Single click: select the task
-					if clickedRow >= 0 && clickedRow < columnCount {
-						m.boardColumn = clickedColumn
-						m.boardRow = clickedRow
-						m.selected = m.getBoardSelectedTask()
-						// Track for double-click detection
-						m.lastClickTime = now
-						m.lastClickColumn = clickedColumn
-						m.lastClickRow = clickedRow
-					} else if clickedRow >= 0 {
-						// Clicked in column but below tasks - just focus the column
-						m.boardColumn = clickedColumn
-						if columnCount > 0 {
-							m.boardRow = columnCount - 1
-						} else {
-							m.boardRow = 0
-						}
-						m.selected = m.getBoardSelectedTask()
-						// Reset click tracking since we didn't click on a valid task
-						m.lastClickTime = time.Time{}
-					}
+					m.selected = m.getBoardSelectedTask()
+					// Reset click tracking since we didn't click on a valid task
+					m.lastClickTime = time.Time{}
 				}
 			}
 		}
 
-	case tea.MouseActionRelease:
-		// Handle scroll wheel in board view
-		if msg.Button == tea.MouseButtonWheelUp {
-			if m.boardRow > 0 {
-				m.boardRow--
-				m.selected = m.getBoardSelectedTask()
-			}
-		} else if msg.Button == tea.MouseButtonWheelDown {
-			// Get count for current column
-			columnCount := getColumnCount(m.boardColumn)
-			if m.boardRow < columnCount-1 {
-				m.boardRow++
-				m.selected = m.getBoardSelectedTask()
-			}
+	case tea.MouseButtonWheelUp:
+		if m.boardRow > 0 {
+			m.boardRow--
+			m.selected = m.getBoardSelectedTask()
+		}
+
+	case tea.MouseButtonWheelDown:
+		// Get count for current column
+		columnCount := getColumnCount(m.boardColumn)
+		if m.boardRow < columnCount-1 {
+			m.boardRow++
+			m.selected = m.getBoardSelectedTask()
 		}
 	}
 
