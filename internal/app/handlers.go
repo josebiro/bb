@@ -306,7 +306,7 @@ func (m *Model) handleBoardMouse(msg tea.MouseMsg) tea.Cmd {
 	switch msg.Button {
 	case tea.MouseButtonLeft:
 		if actualColumn >= 0 && actualColumn < totalColumns {
-			cardHeight := 3
+			cardHeight := 4 // 3 content lines + 1 divider
 			clickedRow := (msg.Y - colTop - 1) / cardHeight
 
 			columnCount := getColumnCount(actualColumn)

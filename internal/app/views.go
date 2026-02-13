@@ -689,64 +689,78 @@ func (m Model) viewBoard() string {
 		colHeight = 8
 	}
 
-	// Card height (each task card is 3 lines)
-	cardHeight := 3
+	// Card height: 3 content lines + 1 divider = 4 lines per card
+	cardHeight := 4
 	cardsPerColumn := (colHeight - 2) / cardHeight
 	if cardsPerColumn < 1 {
 		cardsPerColumn = 1
 	}
 
-	// Render a single task card
-	renderCard := func(bt boardTask, borderColor lipgloss.Color, selected bool, cardWidth int) string {
-		innerWidth := cardWidth - 4
+	// Helper to pad or truncate a string to exact visible width
+	padToWidth := func(s string, width int) string {
+		w := lipgloss.Width(s)
+		if w < width {
+			return s + strings.Repeat(" ", width-w)
+		}
+		return s
+	}
 
+	// Helper to truncate a string to fit within a visible width
+	truncateToWidth := func(s string, width int) string {
+		if lipgloss.Width(s) <= width {
+			return s
+		}
+		for lipgloss.Width(s+"…") > width && len(s) > 0 {
+			s = s[:len(s)-1]
+		}
+		return s + "…"
+	}
+
+	// Render a single task card (3 lines, no borders)
+	// Returns 3 lines of content, each padded to innerWidth
+	renderCard := func(bt boardTask, selected bool, innerWidth int) string {
+		// Line 1: Priority + ID
 		priority := ui.PriorityStyle(bt.task.Priority).Render(bt.priority)
 		idStyled := ui.HelpDescStyle.Render(bt.id)
+		line1 := priority + " " + idStyled
 
-		prefixWidth := lipgloss.Width(bt.priority) + 1 + lipgloss.Width(bt.id) + 1
-		titleWidth := innerWidth - prefixWidth
-		if titleWidth < 5 {
-			titleWidth = 5
+		// Line 2: Title (full width)
+		title := truncateToWidth(bt.title, innerWidth)
+		line2 := title
+
+		// Line 3: Type + assignee
+		typeStyled := ui.HelpDescStyle.Render(bt.task.Type)
+		line3 := typeStyled
+		if bt.task.Assignee != "" {
+			assigneeStyled := lipgloss.NewStyle().Foreground(ui.ColorAccent).Render("@" + bt.task.Assignee)
+			line3 = typeStyled + "  " + assigneeStyled
 		}
 
-		title := bt.title
-		if lipgloss.Width(title) > titleWidth {
-			for lipgloss.Width(title+"…") > titleWidth && len(title) > 0 {
-				title = title[:len(title)-1]
-			}
-			title = title + "…"
-		}
-
-		content := fmt.Sprintf("%s %s %s", priority, idStyled, title)
-
-		contentWidth := lipgloss.Width(content)
-		if contentWidth < innerWidth {
-			content = content + strings.Repeat(" ", innerWidth-contentWidth)
-		}
-
-		borderStyle := lipgloss.NewStyle().Foreground(borderColor)
-		if selected {
-			borderStyle = borderStyle.Bold(true)
-		}
-
-		topBorder := borderStyle.Render("╭" + strings.Repeat("─", cardWidth-2) + "╮")
-		bottomBorder := borderStyle.Render("╰" + strings.Repeat("─", cardWidth-2) + "╯")
-
-		var middleLine string
 		if selected {
 			highlightStyle := lipgloss.NewStyle().
 				Background(lipgloss.Color("236")).
 				Foreground(lipgloss.Color("15"))
-			middleLine = borderStyle.Render("│") + " " + highlightStyle.Render(content) + " " + borderStyle.Render("│")
+			line1 = highlightStyle.Render(padToWidth("▸"+priority+" "+bt.id, innerWidth))
+			line2 = highlightStyle.Render(padToWidth("▸"+truncateToWidth(bt.title, innerWidth-1), innerWidth))
+			// Line 3 for selected: re-render plain text with highlight
+			meta := "▸" + bt.task.Type
+			if bt.task.Assignee != "" {
+				meta += "  @" + bt.task.Assignee
+			}
+			line3 = highlightStyle.Render(padToWidth(meta, innerWidth))
 		} else {
-			middleLine = borderStyle.Render("│") + " " + content + " " + borderStyle.Render("│")
+			line1 = padToWidth(line1, innerWidth)
+			line2 = padToWidth(line2, innerWidth)
+			line3 = padToWidth(line3, innerWidth)
 		}
 
-		return topBorder + "\n" + middleLine + "\n" + bottomBorder
+		return line1 + "\n" + line2 + "\n" + line3
 	}
 
 	// Render a column
 	renderColumn := func(tasks []boardTask, borderColor lipgloss.Color, focused bool, selectedRow int, header string, thisColWidth int) string {
+		innerWidth := thisColWidth - 4 // -4 for column borders + padding
+
 		headerColor := borderColor
 		if !focused {
 			headerColor = ui.ColorMuted
@@ -771,10 +785,11 @@ func (m Model) viewBoard() string {
 			}
 		}
 
-		var cards []string
+		// Build content lines (not yet wrapped in column borders)
+		var contentLines []string
 
 		if scrollOffset > 0 {
-			cards = append(cards, ui.HelpDescStyle.Render(fmt.Sprintf(" ↑ %d more", scrollOffset)))
+			contentLines = append(contentLines, ui.HelpDescStyle.Render(fmt.Sprintf(" ↑ %d more", scrollOffset)))
 		}
 
 		endIdx := scrollOffset + cardsPerColumn
@@ -782,51 +797,58 @@ func (m Model) viewBoard() string {
 			endIdx = len(tasks)
 		}
 
+		dividerStyle := lipgloss.NewStyle().Foreground(ui.ColorBorder)
+		divider := dividerStyle.Render(strings.Repeat("╌", innerWidth))
+
 		for i := scrollOffset; i < endIdx; i++ {
+			// Add divider between cards (not before first)
+			if i > scrollOffset {
+				contentLines = append(contentLines, divider)
+			}
 			isSelected := focused && i == selectedRow
-			card := renderCard(tasks[i], borderColor, isSelected, thisColWidth-2)
-			cards = append(cards, card)
+			card := renderCard(tasks[i], isSelected, innerWidth)
+			cardLines := strings.Split(card, "\n")
+			contentLines = append(contentLines, cardLines...)
 		}
 
 		if endIdx < len(tasks) {
 			remaining := len(tasks) - endIdx
-			cards = append(cards, ui.HelpDescStyle.Render(fmt.Sprintf(" ↓ %d more", remaining)))
+			contentLines = append(contentLines, ui.HelpDescStyle.Render(fmt.Sprintf(" ↓ %d more", remaining)))
 		}
 
 		if len(tasks) == 0 {
 			emptyStyle := lipgloss.NewStyle().Foreground(ui.ColorMuted).Italic(true)
-			cards = append(cards, emptyStyle.Render(" (empty)"))
+			contentLines = append(contentLines, emptyStyle.Render(" (empty)"))
 		}
 
+		// Column border style
 		borderStyle := lipgloss.NewStyle().Foreground(borderColor)
 		if !focused {
 			borderStyle = lipgloss.NewStyle().Foreground(ui.ColorBorder)
 		}
 
+		// Top border with embedded header
 		headerWidth := lipgloss.Width(headerText)
 		remainingWidth := thisColWidth - headerWidth - 4
 		if remainingWidth < 0 {
 			remainingWidth = 0
 		}
-
 		topBorder := borderStyle.Render("╭─") + headerStyle.Render(headerText) + borderStyle.Render(strings.Repeat("─", remainingWidth)+"─╮")
 
-		columnContent := strings.Join(cards, "\n")
-
-		contentLines := strings.Split(columnContent, "\n")
+		// Wrap content lines in column borders
 		var borderedContent []string
 		for _, line := range contentLines {
 			lineWidth := lipgloss.Width(line)
-			innerWidth := thisColWidth - 4
 			if lineWidth < innerWidth {
 				line = line + strings.Repeat(" ", innerWidth-lineWidth)
 			}
 			borderedContent = append(borderedContent, borderStyle.Render("│")+" "+line+" "+borderStyle.Render("│"))
 		}
 
+		// Pad to fill column height
 		contentHeight := colHeight - 2
 		for len(borderedContent) < contentHeight {
-			emptyLine := strings.Repeat(" ", thisColWidth-4)
+			emptyLine := strings.Repeat(" ", innerWidth)
 			borderedContent = append(borderedContent, borderStyle.Render("│")+" "+emptyLine+" "+borderStyle.Render("│"))
 		}
 		if len(borderedContent) > contentHeight {
