@@ -141,6 +141,7 @@ type UpdateOptions struct {
 	Assignee    string
 	Type        string
 	Description string
+	Notes       string
 }
 
 // Update modifies an existing task
@@ -164,6 +165,9 @@ func (c *Client) Update(id string, opts UpdateOptions) error {
 	}
 	if opts.Description != "" {
 		args = append(args, "-d", opts.Description)
+	}
+	if opts.Notes != "" {
+		args = append(args, "--notes", opts.Notes)
 	}
 
 	cmd := exec.Command("bd", args...)

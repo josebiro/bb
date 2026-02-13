@@ -35,6 +35,7 @@ const (
 	ViewBoard
 	ViewAddBlocker
 	ViewRemoveBlocker
+	ViewEditText
 )
 
 // PanelFocus represents which panel is focused
@@ -161,7 +162,8 @@ type Model struct {
 	confirmAction func() tea.Cmd
 
 	// Modal state for field editing
-	modal ui.Modal
+	modal     ui.Modal
+	editField string // tracks which field is being edited ("description" or "notes")
 
 	// Filter state
 	filterQuery string
@@ -406,20 +408,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.mode = ViewList
 		cmds = append(cmds, m.loadTasks())
 
-	case editorFinishedMsg:
-		if msg.err != nil {
-			m.err = msg.err
-		} else if m.selected != nil {
-			// Update description
-			return m, func() tea.Msg {
-				err := m.client.Update(m.selected.ID, beads.UpdateOptions{
-					Description: msg.content,
-				})
-				return taskUpdatedMsg{err: err}
-			}
-		}
-		m.mode = ViewList
-
 	case tickMsg:
 		// Periodic refresh - reload tasks and schedule next tick
 		cmds = append(cmds, m.loadTasks(), pollTick())
@@ -535,6 +523,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Update comment input
 		var cmd tea.Cmd
 		m.commentInput, cmd = m.commentInput.Update(msg)
+		cmds = append(cmds, cmd)
+	case ViewEditText:
+		// Update textarea in modal
+		var cmd tea.Cmd
+		m.modal.Textarea, cmd = m.modal.Textarea.Update(msg)
 		cmds = append(cmds, cmd)
 	}
 

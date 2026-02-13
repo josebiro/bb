@@ -3,6 +3,7 @@ package ui
 import (
 	"strings"
 
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -13,6 +14,7 @@ type ModalType int
 const (
 	ModalInput ModalType = iota
 	ModalSelect
+	ModalTextarea
 )
 
 // ModalOption represents an option in a select modal
@@ -30,6 +32,9 @@ type Modal struct {
 
 	// For input modals
 	Input textinput.Model
+
+	// For textarea modals
+	Textarea textarea.Model
 
 	// For select modals
 	Options  []ModalOption
@@ -70,6 +75,47 @@ func NewModalSelect(title, subtitle string, options []ModalOption, currentValue 
 		Options:  options,
 		Selected: selected,
 	}
+}
+
+// NewModalTextarea creates a new multi-line text editing modal
+func NewModalTextarea(title, subtitle, value string, width, height int) Modal {
+	ta := textarea.New()
+	ta.SetValue(value)
+	ta.Focus()
+	ta.CharLimit = 0 // Unlimited
+
+	// Size the textarea to fit within the modal
+	taWidth := width*4/5 - 6 // 80% of screen minus modal padding/border
+	if taWidth > 74 {
+		taWidth = 74 // Cap at 80 col modal minus padding
+	}
+	if taWidth < 30 {
+		taWidth = 30
+	}
+	ta.SetWidth(taWidth)
+
+	taHeight := height/2 - 4 // Half screen minus title/help/border
+	if taHeight > 20 {
+		taHeight = 20
+	}
+	if taHeight < 5 {
+		taHeight = 5
+	}
+	ta.SetHeight(taHeight)
+
+	ta.ShowLineNumbers = false
+
+	return Modal{
+		Type:     ModalTextarea,
+		Title:    title,
+		Subtitle: subtitle,
+		Textarea: ta,
+	}
+}
+
+// TextareaValue returns the textarea value
+func (m Modal) TextareaValue() string {
+	return m.Textarea.Value()
 }
 
 // MoveUp moves selection up in select modal
@@ -141,15 +187,30 @@ func (m Modal) View(width, height int) string {
 	content.WriteString(titleLine)
 	content.WriteString("\n\n")
 
-	if m.Type == ModalInput {
+	helpStyle := lipgloss.NewStyle().Foreground(ColorMuted)
+
+	switch m.Type {
+	case ModalInput:
 		// Text input - no extra border, modal border is enough
 		content.WriteString(m.Input.View())
 		content.WriteString("\n\n")
-
-		// Help text
-		helpStyle := lipgloss.NewStyle().Foreground(ColorMuted)
 		content.WriteString(helpStyle.Render("enter: save  esc: cancel"))
-	} else {
+
+	case ModalTextarea:
+		// Multi-line textarea
+		// Use wider modal for textarea
+		modalWidth = width * 4 / 5
+		if modalWidth > 80 {
+			modalWidth = 80
+		}
+		if modalWidth < 40 {
+			modalWidth = 40
+		}
+		content.WriteString(m.Textarea.View())
+		content.WriteString("\n\n")
+		content.WriteString(helpStyle.Render("ctrl+s: save  esc: cancel"))
+
+	default:
 		// Vertical select options
 		for i, opt := range m.Options {
 			var optText string
@@ -172,9 +233,6 @@ func (m Modal) View(width, height int) string {
 			content.WriteString("\n")
 		}
 		content.WriteString("\n")
-
-		// Help text
-		helpStyle := lipgloss.NewStyle().Foreground(ColorMuted)
 		content.WriteString(helpStyle.Render("j/k: nav  enter: select  esc: cancel"))
 	}
 

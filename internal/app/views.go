@@ -29,7 +29,7 @@ func (m Model) View() string {
 			return m.viewDetailOverlay()
 		}
 		return m.viewMain()
-	case ViewEditTitle, ViewEditStatus, ViewEditPriority, ViewEditType, ViewFilter, ViewAddBlocker, ViewRemoveBlocker:
+	case ViewEditTitle, ViewEditStatus, ViewEditPriority, ViewEditType, ViewFilter, ViewAddBlocker, ViewRemoveBlocker, ViewEditText:
 		return m.viewMainWithModal()
 	case ViewAddComment:
 		return m.viewAddComment()
@@ -170,7 +170,8 @@ Field Editing
   p           Edit priority (modal)
   t           Edit type (modal)
   y           Copy issue ID to clipboard
-  d           Edit description ($EDITOR)
+  d           Edit description (modal)
+  n           Edit notes (modal)
   C           Add comment
   B           Add blocker (dependency)
   D           Remove blocker

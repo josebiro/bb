@@ -3,7 +3,6 @@ package app
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
 	"text/template"
@@ -469,6 +468,8 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) tea.Cmd {
 		return m.handleAddBlockerKeys(msg)
 	case ViewRemoveBlocker:
 		return m.handleRemoveBlockerKeys(msg)
+	case ViewEditText:
+		return m.handleTextEditKeys(msg)
 	}
 	return nil
 }
@@ -580,7 +581,18 @@ func (m *Model) handleListKeys(msg tea.KeyMsg) tea.Cmd {
 
 	case key.Matches(msg, m.keys.EditDescription):
 		if task := m.getSelectedTask(); task != nil {
-			return m.editDescriptionInEditor(task)
+			m.editField = "description"
+			m.modal = ui.NewModalTextarea("Edit Description", task.ID, task.Description, m.width, m.height)
+			m.mode = ViewEditText
+			return m.modal.Textarea.Focus()
+		}
+
+	case key.Matches(msg, m.keys.EditNotes):
+		if task := m.getSelectedTask(); task != nil {
+			m.editField = "notes"
+			m.modal = ui.NewModalTextarea("Edit Notes", task.ID, task.Notes, m.width, m.height)
+			m.mode = ViewEditText
+			return m.modal.Textarea.Focus()
 		}
 
 	case key.Matches(msg, m.keys.AddComment):
@@ -1120,42 +1132,33 @@ func (m *Model) handleBoardKeys(msg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
-func (m *Model) editDescriptionInEditor(task *models.Task) tea.Cmd {
-	editor := os.Getenv("EDITOR")
-	if editor == "" {
-		editor = "nano"
-	}
-
-	// Create temp file with .md extension for syntax highlighting
-	tmpfile, err := os.CreateTemp("", "lazybeads-*.md")
-	if err != nil {
-		m.err = fmt.Errorf("failed to create temp file: %w", err)
-		return nil
-	}
-
-	// Write current description to temp file
-	if _, err := tmpfile.WriteString(task.Description); err != nil {
-		tmpfile.Close()
-		os.Remove(tmpfile.Name())
-		m.err = fmt.Errorf("failed to write to temp file: %w", err)
-		return nil
-	}
-	tmpfile.Close()
-
-	tmpPath := tmpfile.Name()
-	c := exec.Command(editor, tmpPath)
-
-	return tea.ExecProcess(c, func(err error) tea.Msg {
-		defer os.Remove(tmpPath)
-		if err != nil {
-			return editorFinishedMsg{err: err}
+func (m *Model) handleTextEditKeys(msg tea.KeyMsg) tea.Cmd {
+	switch msg.String() {
+	case "ctrl+s":
+		// Save the edited text
+		if m.selected != nil {
+			value := strings.TrimSpace(m.modal.TextareaValue())
+			taskID := m.selected.ID
+			field := m.editField
+			m.mode = ViewList
+			return func() tea.Msg {
+				var opts beads.UpdateOptions
+				switch field {
+				case "notes":
+					opts.Notes = value
+				default:
+					opts.Description = value
+				}
+				err := m.client.Update(taskID, opts)
+				return taskUpdatedMsg{err: err}
+			}
 		}
-		content, readErr := os.ReadFile(tmpPath)
-		if readErr != nil {
-			return editorFinishedMsg{err: readErr}
-		}
-		return editorFinishedMsg{content: string(content)}
-	})
+		m.mode = ViewList
+	case "esc":
+		// Cancel editing
+		m.mode = ViewList
+	}
+	return nil
 }
 
 // matchCustomCommand checks if the key matches any custom command for the given context

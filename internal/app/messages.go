@@ -38,12 +38,6 @@ type taskDeletedMsg struct {
 	err error
 }
 
-// editorFinishedMsg is sent when external editor completes
-type editorFinishedMsg struct {
-	content string
-	err     error
-}
-
 // clipboardCopiedMsg is sent when text is copied to clipboard
 type clipboardCopiedMsg struct {
 	text string

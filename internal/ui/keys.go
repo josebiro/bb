@@ -24,6 +24,7 @@ type KeyMap struct {
 	EditPriority    key.Binding
 	EditType        key.Binding
 	EditDescription key.Binding
+	EditNotes       key.Binding
 	AddComment      key.Binding
 	CopyID          key.Binding
 
@@ -130,6 +131,10 @@ func DefaultKeyMap() KeyMap {
 		EditDescription: key.NewBinding(
 			key.WithKeys("d"),
 			key.WithHelp("d", "edit description"),
+		),
+		EditNotes: key.NewBinding(
+			key.WithKeys("n"),
+			key.WithHelp("n", "edit notes"),
 		),
 		AddComment: key.NewBinding(
 			key.WithKeys("C"),
