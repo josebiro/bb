@@ -84,7 +84,7 @@ func (m *Model) handleListMouse(msg tea.MouseMsg) tea.Cmd {
 				m.updateDetailContent()
 				m.detail.LineUp(3)
 			} else {
-				m.scrollFocusedPanel(-3)
+				m.scrollFocusedPanel(-1)
 			}
 
 		case tea.MouseButtonWheelDown:
@@ -92,7 +92,7 @@ func (m *Model) handleListMouse(msg tea.MouseMsg) tea.Cmd {
 				m.updateDetailContent()
 				m.detail.LineDown(3)
 			} else {
-				m.scrollFocusedPanel(3)
+				m.scrollFocusedPanel(1)
 			}
 		}
 	}

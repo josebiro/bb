@@ -228,11 +228,13 @@ func DefaultKeyMap() KeyMap {
 // ShortHelp returns keybindings for compact help view
 func (k KeyMap) ShortHelp() []key.Binding {
 	return []key.Binding{
-		k.Up,
 		k.Select,
 		k.Add,
+		k.EditTitle,
+		k.EditStatus,
+		k.EditDescription,
+		k.EditNotes,
 		k.Delete,
-		k.Filter,
 		k.Help,
 		k.Quit,
 	}
@@ -243,8 +245,10 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 	groups := [][]key.Binding{
 		{k.Up, k.Down, k.Top, k.Bottom, k.PageUp, k.PageDown},
 		{k.Select, k.Add, k.Delete, k.Refresh},
-		{k.Filter, k.Ready, k.Open, k.All},
-		{k.Help, k.Quit, k.Cancel},
+		{k.EditTitle, k.EditStatus, k.EditPriority, k.EditType, k.EditDescription, k.EditNotes},
+		{k.AddComment, k.CopyID, k.AddBlocker, k.RemoveBlocker},
+		{k.Filter, k.Ready, k.Open, k.Closed, k.All, k.Sort},
+		{k.Board, k.Help, k.Quit, k.Cancel},
 	}
 	// Add custom commands as a separate group if present
 	if len(k.CustomCommands) > 0 {

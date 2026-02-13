@@ -316,14 +316,12 @@ func (m Model) renderStatusBar() string {
 			key  string
 			desc string
 		}{
-			{"j/k", "nav"},
-			{"h/l", "panel"},
-			{"/", "search"},
-			{"o/O/r", "filter"},
-			{"S", "sort"},
-			{"b", "board"},
 			{"enter", "detail"},
-			{"e/s/p/t/d", "edit"},
+			{"c", "create"},
+			{"e/s/p/t", "edit"},
+			{"d", "description"},
+			{"n", "notes"},
+			{"x", "delete"},
 			{"?", "help"},
 			{"q", "quit"},
 		}
