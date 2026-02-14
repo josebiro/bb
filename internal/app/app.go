@@ -420,6 +420,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = msg.err
 		} else {
 			m.comments = msg.comments
+			// Refresh detail viewport so comments appear immediately
+			m.updateDetailContent()
 		}
 
 	case commentAddedMsg:
