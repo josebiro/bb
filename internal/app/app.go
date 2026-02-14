@@ -323,8 +323,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c":
 			return m, tea.Quit
 		case "q":
-			// Only quit from list view
-			if m.mode == ViewList {
+			// Quit from list or board view
+			if m.mode == ViewList || m.mode == ViewBoard {
 				return m, tea.Quit
 			}
 		case "esc":
