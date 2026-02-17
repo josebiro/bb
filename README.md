@@ -1,53 +1,57 @@
 # BusyBeads (aka bb)
 
-A terminal user interface for managing [beads](https://github.com/anthropics/beads) issues, inspired by [LazyGit](https://github.com/jesseduffield/lazygit), this was originally a fork of [LazyBeads](https://github.com/codegangsta/lazybeads).
+A terminal user interface for managing [beads](https://github.com/steveyegge/beads) issues, inspired by [LazyGit](https://github.com/jesseduffield/lazygit).
 
-Navigate, create, and manage your project issues without leaving the terminal. Heavily uses charmbracelet libraries for a responsive and intuitive experience.
+Navigate, create, and manage your project issues without leaving the terminal.
 
-<img width="2550" height="1362" alt="CleanShot 2026-01-07 at 18 17 53@2x" src="https://github.com/user-attachments/assets/2b6fdc40-4595-41f3-9a73-e3eb9de00cfc" />
+Originally forked from [LazyBeads](https://github.com/codegangsta/lazybeads) by [Jeremy Saenz](https://github.com/codegangsta). BusyBeads has since diverged significantly with hierarchical tree views, board view, dependency management, and other features.
 
+<img width="2550" height="1362" alt="" src="" />
 
 ## Features
 
 - **Three-panel layout** - See In Progress, Open, and Closed issues at a glance
-- **Hierarchical issues** - Expand epics to view child tasks and subtasks
-- **Board view** - Visualize issue status kanban-style with color-coded priorities
+- **Hierarchical tree view** - Expand/collapse epics to view child tasks and subtasks
+- **Board view** - Kanban-style columns (Blocked, Open, Ready, In Progress, Done)
 - **Vim-style navigation** - `j/k` to move, `h/l` to switch panels
-- **Mouse support** - Click to select, open details, or trigger actions
-- **Quick editing** - Edit title, status, priority, or type with single keystrokes
-- **Filter & search** - Use `/` to filter issues by title or ID
-- **Detail view** - Press `Enter` to see full issue details
-- **External editor** - Edit descriptions with `$EDITOR` (defaults to nano)
-- **Custom commands** - Define your own keybindings for workflows
+- **Mouse support** - Click to select, open details, or toggle tree nodes
+- **Quick editing** - Edit title, status, priority, type, description, or notes with single keystrokes
+- **Filter & search** - Filter by text (`/`), or preset views: ready, open, closed, all
+- **Sorting** - Cycle through sort modes (priority, updated)
+- **Dependencies** - Add and remove blockers between issues
+- **Comments** - View and add comments inline
+- **Detail view** - Press `Enter` to see full issue details with comments
+- **External editor** - Edit descriptions and notes with `$EDITOR`
+- **Custom commands** - Define your own keybindings with template variables
 
 ## Installation
 
 ### Prerequisites
 
 - Go 1.25+
-- `bd` CLI installed and available in PATH
+- [`bd` CLI](https://github.com/steveyegge/beads) installed and available in PATH
 
 ### From source
 
 ```bash
-go install github.com/youruser/lazybeads@latest
+go install github.com/josebiro/bb@latest
 ```
 
 Or clone and build:
 
 ```bash
-git clone https://github.com/youruser/lazybeads
-cd lazybeads
-go install .
+git clone https://github.com/josebiro/bb
+cd bb
+make install
 ```
 
 ## Usage
 
-Run `lazybeads` in any directory with beads initialized:
+Run `bb` in any directory with beads initialized:
 
 ```bash
 cd your-project
-lazybeads
+bb
 ```
 
 If beads isn't initialized, you'll be prompted to set it up.
@@ -57,7 +61,7 @@ If beads isn't initialized, you'll be prompted to set it up.
 Verify the bd CLI integration works:
 
 ```bash
-lazybeads --check
+bb --check
 ```
 
 ## Keybindings
@@ -80,38 +84,58 @@ lazybeads --check
 | `x` | Delete issue |
 | `R` | Refresh list |
 
-### Quick edit
+### Editing (from list or detail view)
 
 | Key | Action |
 |-----|--------|
-| `t` | Edit title |
+| `e` | Edit title |
 | `s` | Edit status |
 | `p` | Edit priority |
-| `T` | Edit type |
-| `d` or `e` | Edit description (opens $EDITOR) |
+| `t` | Edit type |
+| `d` | Edit description |
+| `n` | Edit notes |
 | `y` | Copy issue ID to clipboard |
 
-### Filter
+### Comments & Dependencies
 
 | Key | Action |
 |-----|--------|
-| `/` | Start filter |
-| `Esc` | Clear filter |
+| `C` | Add comment |
+| `B` | Add blocker |
+| `D` | Remove blocker |
 
-### General
+### Tree View
 
 | Key | Action |
 |-----|--------|
+| `Space` | Expand / collapse epic children |
+
+### Filtering & Sorting
+
+| Key | Action |
+|-----|--------|
+| `/` | Start text filter |
+| `r` | Show ready issues |
+| `o` | Show open issues |
+| `O` | Show closed issues |
+| `A` | Show all issues |
+| `S` | Cycle sort mode |
+
+### Views
+
+| Key | Action |
+|-----|--------|
+| `b` | Toggle board view |
 | `?` | Show help |
 | `Esc` | Go back / cancel |
 | `q` | Quit |
 
 ## Configuration
 
-LazyBeads looks for a configuration file at:
+bb looks for a configuration file at:
 
-- `$LAZYBEADS_CONFIG` (if set)
-- `~/.config/lazybeads/config.yml` (default)
+1. `$BB_CONFIG` (if set, direct path to config file)
+2. `~/.config/bb/config.yml` (default)
 
 ### Custom commands
 
@@ -124,7 +148,7 @@ customCommands:
     context: "list"  # list, detail, or global
     command: "tmux split-window -h 'claude --issue {{.ID}}'"
 
-  - key: "b"
+  - key: "W"
     description: "Open in browser"
     context: "list"
     command: "open 'https://your-tracker.com/issues/{{.ID}}'"
@@ -139,23 +163,28 @@ Available template variables:
 - `{{.Priority}}` - Priority (0-4)
 - `{{.Description}}` - Full description
 
-## Project structure
+## Project Structure
 
 ```
-lazybeads/
+bb/
 ├── main.go              # Entry point, CLI flags
 ├── internal/
 │   ├── app/             # Bubble Tea application model
 │   ├── beads/           # bd CLI wrapper
 │   ├── config/          # Configuration loading
-│   ├── models/          # Data models
+│   ├── models/          # Data models and hierarchy utils
 │   └── ui/              # UI components and styles
 └── .beads/              # Issue storage (managed by bd)
 ```
 
-## Related projects
+## Acknowledgments
 
-- [beads](https://github.com/anthropics/beads) - Git-native issue tracking
+bb is built on [LazyBeads](https://github.com/codegangsta/lazybeads) by [Jeremy Saenz](https://github.com/codegangsta), which provided the original three-panel TUI design and bd CLI integration.
+
+## Related Projects
+
+- [beads](https://github.com/steveyegge/beads) - Git-native issue tracking
+- [LazyBeads](https://github.com/codegangsta/lazybeads) - The original TUI for beads
 - [LazyGit](https://github.com/jesseduffield/lazygit) - Terminal UI for git
 - [Bubble Tea](https://github.com/charmbracelet/bubbletea) - TUI framework for Go
 
