@@ -815,9 +815,10 @@ func (m *Model) flattenTree(tasks []models.Task, sortFn func([]models.Task)) []t
 	}
 
 	// Group tasks by parent. Key "" = roots (no parent in this set).
+	// Uses explicit parent-child dependencies first, falls back to ID naming.
 	childrenOf := make(map[string][]models.Task)
 	for _, t := range tasks {
-		parentID := models.ParentID(t.ID)
+		parentID := t.GetParentID()
 		if parentID != "" && taskByID[parentID] {
 			childrenOf[parentID] = append(childrenOf[parentID], t)
 		} else {

@@ -5,31 +5,39 @@ import (
 	"time"
 )
 
+// Dependency represents a relationship between two issues (from bd list JSON)
+type Dependency struct {
+	IssueID     string `json:"issue_id"`
+	DependsOnID string `json:"depends_on_id"`
+	Type        string `json:"type"`
+}
+
 // Task represents a beads issue
 type Task struct {
-	ID                 string     `json:"id"`
-	Title              string     `json:"title"`
-	Description        string     `json:"description,omitempty"`
-	Notes              string     `json:"notes,omitempty"`
-	Design             string     `json:"design,omitempty"`
-	AcceptanceCriteria string     `json:"acceptance_criteria,omitempty"`
-	Status             string     `json:"status"`
-	Priority           int        `json:"priority"`
-	Type               string     `json:"issue_type"`
-	Labels             []string   `json:"labels,omitempty"`
-	Assignee           string     `json:"assignee,omitempty"`
-	Owner              string     `json:"owner,omitempty"`
-	CreatedAt          time.Time  `json:"created_at"`
-	CreatedBy          string     `json:"created_by,omitempty"`
-	UpdatedAt          time.Time  `json:"updated_at"`
-	ClosedAt           *time.Time `json:"closed_at,omitempty"`
-	CloseReason        string     `json:"close_reason,omitempty"`
-	DueDate            *time.Time `json:"due_date,omitempty"`
-	DeferUntil         *time.Time `json:"defer_until,omitempty"`
-	BlockedBy          []string   `json:"blocked_by,omitempty"`
-	Blocks             []string   `json:"blocks,omitempty"`
-	DependencyCount    int        `json:"dependency_count,omitempty"`
-	DependentCount     int        `json:"dependent_count,omitempty"`
+	ID                 string       `json:"id"`
+	Title              string       `json:"title"`
+	Description        string       `json:"description,omitempty"`
+	Notes              string       `json:"notes,omitempty"`
+	Design             string       `json:"design,omitempty"`
+	AcceptanceCriteria string       `json:"acceptance_criteria,omitempty"`
+	Status             string       `json:"status"`
+	Priority           int          `json:"priority"`
+	Type               string       `json:"issue_type"`
+	Labels             []string     `json:"labels,omitempty"`
+	Assignee           string       `json:"assignee,omitempty"`
+	Owner              string       `json:"owner,omitempty"`
+	CreatedAt          time.Time    `json:"created_at"`
+	CreatedBy          string       `json:"created_by,omitempty"`
+	UpdatedAt          time.Time    `json:"updated_at"`
+	ClosedAt           *time.Time   `json:"closed_at,omitempty"`
+	CloseReason        string       `json:"close_reason,omitempty"`
+	DueDate            *time.Time   `json:"due_date,omitempty"`
+	DeferUntil         *time.Time   `json:"defer_until,omitempty"`
+	BlockedBy          []string     `json:"blocked_by,omitempty"`
+	Blocks             []string     `json:"blocks,omitempty"`
+	Dependencies       []Dependency `json:"dependencies,omitempty"`
+	DependencyCount    int          `json:"dependency_count,omitempty"`
+	DependentCount     int          `json:"dependent_count,omitempty"`
 }
 
 // PriorityString returns a short priority label
@@ -67,6 +75,17 @@ func (t Task) StatusIcon() string {
 // IsBlocked returns true if task has blockers
 func (t Task) IsBlocked() bool {
 	return len(t.BlockedBy) > 0
+}
+
+// GetParentID returns the parent task ID. It checks explicit parent-child
+// dependencies first, then falls back to ID naming convention (dot notation).
+func (t Task) GetParentID() string {
+	for _, dep := range t.Dependencies {
+		if dep.Type == "parent-child" {
+			return dep.DependsOnID
+		}
+	}
+	return ParentID(t.ID)
 }
 
 // FilePath returns the path to the task's markdown file

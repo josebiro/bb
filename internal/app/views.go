@@ -513,8 +513,9 @@ func (m *Model) updateDetailContent() {
 	}
 
 	// Parent/Children hierarchy
+	// Uses explicit parent-child dependencies first, falls back to ID naming convention.
 	b.WriteString("\n")
-	parentID := models.ParentID(t.ID)
+	parentID := t.GetParentID()
 	b.WriteString(ui.DetailLabelStyle.Render("Parent:"))
 	if parentID != "" {
 		if parent, ok := m.tasksMap[parentID]; ok {
@@ -530,9 +531,23 @@ func (m *Model) updateDetailContent() {
 
 	b.WriteString(ui.DetailLabelStyle.Render("Children:"))
 	b.WriteString("\n")
+	childIDs := make(map[string]bool)
 	var children []*models.Task
+	// Find children via explicit parent-child deps (scan all tasks)
+	for _, task := range m.tasksMap {
+		for _, dep := range task.Dependencies {
+			if dep.Type == "parent-child" && dep.DependsOnID == t.ID {
+				if !childIDs[task.ID] {
+					childIDs[task.ID] = true
+					children = append(children, task)
+				}
+			}
+		}
+	}
+	// Also find children via ID naming convention
 	for id, task := range m.tasksMap {
-		if models.IsDirectChildOf(id, t.ID) {
+		if !childIDs[id] && models.IsDirectChildOf(id, t.ID) {
+			childIDs[id] = true
 			children = append(children, task)
 		}
 	}
