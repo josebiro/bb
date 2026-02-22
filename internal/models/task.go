@@ -2,6 +2,7 @@ package models
 
 import (
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -10,6 +11,12 @@ type Dependency struct {
 	IssueID     string `json:"issue_id"`
 	DependsOnID string `json:"depends_on_id"`
 	Type        string `json:"type"`
+}
+
+// IsParentChild returns true if this dependency represents a parent-child
+// relationship. Matches both "parent-child" and "parent" type strings.
+func (d Dependency) IsParentChild() bool {
+	return strings.HasPrefix(d.Type, "parent")
 }
 
 // Task represents a beads issue
@@ -81,7 +88,7 @@ func (t Task) IsBlocked() bool {
 // dependencies first, then falls back to ID naming convention (dot notation).
 func (t Task) GetParentID() string {
 	for _, dep := range t.Dependencies {
-		if dep.Type == "parent-child" {
+		if dep.IsParentChild() {
 			return dep.DependsOnID
 		}
 	}

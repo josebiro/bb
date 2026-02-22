@@ -536,7 +536,7 @@ func (m *Model) updateDetailContent() {
 	// Find children via explicit parent-child deps (scan all tasks)
 	for _, task := range m.tasksMap {
 		for _, dep := range task.Dependencies {
-			if dep.Type == "parent-child" && dep.DependsOnID == t.ID {
+			if dep.IsParentChild() && dep.DependsOnID == t.ID {
 				if !childIDs[task.ID] {
 					childIDs[task.ID] = true
 					children = append(children, task)
